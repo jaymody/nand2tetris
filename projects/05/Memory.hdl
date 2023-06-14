@@ -5,20 +5,20 @@
 
 /**
  * The complete address space of the Hack computer's memory,
- * including RAM and memory-mapped I/O. 
+ * including RAM and memory-mapped I/O.
  * The chip facilitates read and write operations, as follows:
  *     Read:  out(t) = Memory[address(t)](t)
  *     Write: if load(t-1) then Memory[address(t-1)](t) = in(t-1)
- * In words: the chip always outputs the value stored at the memory 
- * location specified by address. If load==1, the in value is loaded 
- * into the memory location specified by address. This value becomes 
+ * In words: the chip always outputs the value stored at the memory
+ * location specified by address. If load==1, the in value is loaded
+ * into the memory location specified by address. This value becomes
  * available through the out output from the next time step onward.
  * Address space rules:
- * Only the upper 16K+8K+1 words of the Memory chip are used. 
- * Access to address>0x6000 is invalid. Access to any address in 
- * the range 0x4000-0x5FFF results in accessing the screen memory 
- * map. Access to address 0x6000 results in accessing the keyboard 
- * memory map. The behavior in these addresses is described in the 
+ * Only the upper 16K+8K+1 words of the Memory chip are used.
+ * Access to address>0x6000 is invalid. Access to any address in
+ * the range 0x4000-0x5FFF results in accessing the screen memory
+ * map. Access to address 0x6000 results in accessing the keyboard
+ * memory map. The behavior in these addresses is described in the
  * Screen and Keyboard chip specifications given in the book.
  */
 
@@ -27,5 +27,27 @@ CHIP Memory {
     OUT out[16];
 
     PARTS:
-    // Put your code here:
+    // a RAM address is the first 16K addresses, which means the first leftmost
+    // bit (addresss[14]) in our 15 bit address will be 0 if it is a ram address
+    //
+    // the next 8K addresses are then reserved for the screen, which means the
+    // second bit (address[1]) will be 0 if it's for the screen
+    //
+    // if the second bit and first bit are 1, then that means we are either
+    // referencing the keyboard word (24576 = 16K + 8K), or we accessing memory
+    // locations > 24576, which is invalid (in which case for simplicity, we'll
+    // just treat it as an access of the keyboard)
+    DMux(in=true, sel=address[14], a=selram, b=selio);
+    DMux(in=selio, sel=address[13], a=selscreen, b=selkey);
+
+    And(a=selram, b=load, out=loadram);
+    RAM16K(in=in, load=loadram, address=address[0..13], out=outram);
+
+    And(a=selscreen, b=load, out=loadscreen);
+    Screen(in=in, load=loadscreen, address=address[0..12], out=outscreen);
+
+    Keyboard(out=outkey);
+
+    Mux16(a=outram, b=outscreen, sel=selscreen, out=out1);
+    Mux16(a=out1, b=outkey, sel=selkey, out=out);
 }
