@@ -6,23 +6,23 @@
 /**
  * The Hack CPU (Central Processing unit), consisting of an ALU,
  * two registers named A and D, and a program counter named PC.
- * The CPU is designed to fetch and execute instructions written in 
+ * The CPU is designed to fetch and execute instructions written in
  * the Hack machine language. In particular, functions as follows:
- * Executes the inputted instruction according to the Hack machine 
+ * Executes the inputted instruction according to the Hack machine
  * language specification. The D and A in the language specification
  * refer to CPU-resident registers, while M refers to the external
- * memory location addressed by A, i.e. to Memory[A]. The inM input 
- * holds the value of this location. If the current instruction needs 
- * to write a value to M, the value is placed in outM, the address 
- * of the target location is placed in the addressM output, and the 
- * writeM control bit is asserted. (When writeM==0, any value may 
- * appear in outM). The outM and writeM outputs are combinational: 
- * they are affected instantaneously by the execution of the current 
- * instruction. The addressM and pc outputs are clocked: although they 
- * are affected by the execution of the current instruction, they commit 
- * to their new values only in the next time step. If reset==1 then the 
- * CPU jumps to address 0 (i.e. pc is set to 0 in next time step) rather 
- * than to the address resulting from executing the current instruction. 
+ * memory location addressed by A, i.e. to Memory[A]. The inM input
+ * holds the value of this location. If the current instruction needs
+ * to write a value to M, the value is placed in outM, the address
+ * of the target location is placed in the addressM output, and the
+ * writeM control bit is asserted. (When writeM==0, any value may
+ * appear in outM). The outM and writeM outputs are combinational:
+ * they are affected instantaneously by the execution of the current
+ * instruction. The addressM and pc outputs are clocked: although they
+ * are affected by the execution of the current instruction, they commit
+ * to their new values only in the next time step. If reset==1 then the
+ * CPU jumps to address 0 (i.e. pc is set to 0 in next time step) rather
+ * than to the address resulting from executing the current instruction.
  */
 
 CHIP CPU {
@@ -34,10 +34,246 @@ CHIP CPU {
                          // the current program (reset==0).
 
     OUT outM[16],        // M value output
-        writeM,          // Write to M? 
+        writeM,          // Write to M?
         addressM[15],    // Address in data memory (of M)
         pc[15];          // address of next instruction
 
+    ////////////////
+    //// INPUTS ////
+    ////////////////
+    //
+    // reset:
+    //      If reset==1, we restart the current program (that is, we reset
+    //      the program counter to point to the address 0), otherwise, we
+    //      continue the program as normal.
+    //
+    // inM[16]:
+    //      The value M (that is, the value RAM[A]).
+    //
+    // instruction[16]:
+    //      The instruction code. This is where the meat of the logic comes
+    //      from, so we'll break it down more in detail.
+    //
+    /////////////////
+    // INSTRUCTION //
+    /////////////////
+    //
+    // The 16-bit instruction code is either an A-instruction, or a
+    // C-instruction.
+    //
+    // An A-instruction lets us load data into our CPU. The data either comes
+    // from the ROM (which corresponds to constants in our program), or from the
+    // RAM (which corresponds to the working memory of our program).
+    //
+    // A C instruction lets us perform computation on data that is currently
+    // loaded into the CPU. This data comes from the previous instruction, which
+    // is usually an A-instruction, but may also be a C-instruction.
+    //
+    // Two A-instructions in a row would be redundant (you'd just be overwriting
+    // the value in the A-register, as if the first A-instruction was never
+    // called). However, two C-instructions in a row (or any number of
+    // C-instructions in a row) is valid and has various use cases.
+    //
+    // Whether an instruction is a C-instruction or A-instruction is indicated
+    // with the leftmost bit of the instruction which is stored at
+    // instruction[15] (in HDL, we index from right-to-left so the leftmost bit
+    // is instruction[15] not instruction[0]).
+    //
+    // Here's a breakdown of both instructions.
+    //
+    // A-instruction:
+    //
+    //      An A-instruction has the form:
+    //
+    //          0ddd dddd dddd dddd
+    //
+    //      The first bit (instruction[15]), with value 0, indicates this is an A instruction.
+    //      The rest of the bits d (instruction[0..14]) are loaded into the A register.
+    //
+    //      The job of the A instruction is simple, it's our way of loading
+    //      values from the ROM instruction memory into our CPU via the A register.
+    //      Then, in the next cycle, we use A or inM (which is set to RAM[A], that is,
+    //      we are indirectly setting inM by calling an A-instruction) as an
+    //      input for some C-instruction (whether that's some kind of computation,
+    //      or jump, or whatever).
+    //
+    //      The logic for the CPU given an A-instruction is as follows:
+    //
+    //          1) Update the value in the A-register.
+    //          2) To make sure inM=RAM[A] for the next step, we set:
+    //                  addressM=A (which tells the computer what RAM address to load inM)
+    //                  writeM=false (make sure we are only reading from memory, not writing to it)
+    //                  the value of outM doesn't matter, since we are not writing
+    //
+    //  C-instruction:
+    //
+    //      A C instruction has the form:
+    //
+    //          1..a cccc ccdd djjj
+    //
+    //      The first bit (instruction[15]), with value 1, indicates this is a C instruction.
+    //
+    //      The next two bits (instruction[14..13]) are ignored.
+    //
+    //      The 4th "a" bit (instruction[12]) determines which values will be part
+    //      of the computation. The ALU has only two inputs, x and y, for which
+    //      it performs a computation. The input x is always set to the D
+    //      register. The input y is M if instruction[12] == 1 else A. This
+    //      means our C-instruction supports computations between either D/A or
+    //      D/M. You cannot directly perform a computation on M/A (instead, if
+    //      this is desired, you first need to store M or A into D).
+    //
+    //      The next 6 "c" bits (instruction[6..11]) are the computation flags
+    //      for the ALU. That is:
+    //
+    //          zx=instruction[11], // zero the x input
+    //          nx=instruction[10], // negate the x input
+    //          zy=instruction[9],  // zero the y input?
+    //          ny=instruction[8],  // negate the y input
+    //          f=instruction[7],   // compute out = x + y (if 1) or x & y (if 0)
+    //          no=instruction[6],  // negate the out output
+    //
+    //      As we know, these Flags, let us compute output all kinds of things.
+    //      from the ALU like D+A, D+M, A-1, D-1, M+1, etc ... We can also
+    //      compute constants like 1 or 0, or pass through values directly like
+    //      D, M or A.
+    //
+    //      The next 3 "d" bits (instruction[3..5]) determine where (if at all)
+    //      we should store the output value:
+    //
+    //          if instruction[5] == 1, save the value to A
+    //          if instruction[4] == 1, save the value to D
+    //          if instruction[3] == 1, save the value to M
+    //
+    //      These are not mutually exclusive. If you set all the flags, the
+    //      ALU output will get stored to all three locations, A, M, and D.
+    //      If none of the "d" bits are set to 1, then the output of the ALU
+    //      is not stored anywhere.
+    //
+    //      Finally, the last 3 "j" bits (instruction[0..2]) determine where
+    //      (if at all) the program should "jump" to (that is, it determines the
+    //      value of the program counter):
+    //
+    //          if instruction[2] == 1, we jump if the ALU output < 0
+    //          if instruction[1] == 1, we jump if the ALU output == 0
+    //          if instruction[0] == 1, we jump if the ALU output > 0
+    //
+    //      The instruction address we jump to is ROM[A].
+    //
+    //      These are not mutually exclusive. For example, if we set the "j"
+    //      bits to 110, this would correspond to jumping if the output is
+    //      <= 0. If all 3 bits are 1, this would mean we always jump. If none
+    //      of the bits are 1, we don't jump (we just increment the program
+    //      counter by 1).
+    //
+    //      Given that, the logic for a C-instruction is as follows:
+    //
+    //          1) If a-bit == 1 then set ALU input y=M else y=a.
+    //          2) Perform the ALU computation on x=D and the y set by the
+    //             previous step. The flags are determined using the 6 c-bits.
+    //          3) Feed the ALU output to A, M, and D as set by the 3 d-bits.
+    //          4) Set the program counter to A if the jump conditions set by
+    //             the 3 "j" bits are met by the output flags of the ALU.
+    //             Otherwise, just increment as normal, or reset if reset is set.
+    //          5) As such:
+    //                  outM      = the output of the ALU
+    //                  writeM    = instruction[5] (the d-bit for writing to M)
+    //                  addressM  = A-register
+    //                  pc        = output of the program counter
+    //
+
+
     PARTS:
-    // Put your code here:
+
+
+    //// RENAMING ////
+    // To make life easier, I'm going to copy the values of instruction into
+    // the wires that match the bit names for the C-instruction.
+    And(a=true, b=instruction[12], out=aBit);
+
+    And(a=true, b=instruction[11], out=zx);
+    And(a=true, b=instruction[10], out=nx);
+    And(a=true, b=instruction[9], out=zy);
+    And(a=true, b=instruction[8], out=ny);
+    And(a=true, b=instruction[7], out=f);
+    And(a=true, b=instruction[6], out=no);
+
+    And(a=true, b=instruction[5], out=saveToA);
+    And(a=true, b=instruction[4], out=saveToD);
+    And(a=true, b=instruction[3], out=saveToM);
+
+    And(a=true, b=instruction[2], out=jumpIfLess);
+    And(a=true, b=instruction[1], out=jumpIfZero);
+    And(a=true, b=instruction[0], out=jumpIfMore);
+
+
+
+    //// DECODE ////
+    // If the first bit in the instruction is 0, it's an A instruction
+    // else it's a C instruction.
+    DMux(in=true, sel=instruction[15], a=isAInstruction, b=isCInstruction);
+
+
+
+    //// REGISTERS ////
+    // A register
+    //
+    // The value of the A register is either the instruction itself if this is
+    // an A-instruction, otherwise it's the ALU's output.
+    //
+    // If it's an A-instruction, we always write to the A registers. If it's a
+    // C-instruction, we only write if the saveToA flag is set.
+    //
+    // NOTE: We use ARegister chip here instead of the regular DRegister chip
+    // so the simulation software can show us it's value for debugging.
+    Mux16(a=outALU, b=instruction, sel=isAInstruction, out=inA);
+    Or(a=isAInstruction, b=saveToA, out=loadA);
+    ARegister(in=inA, load=loadA, out=A, out[0..14]=addressM);
+
+    // D register
+    //
+    // The value of the D register will always be the ALU's output, but we only
+    // write to it if saveToD is set.
+    //
+    // NOTE: We use the DRegister chip here instead of the regular Register chip
+    // so the simulation software can show us it's value for debugging.
+    DRegister(in=outALU, load=saveToD, out=D);
+
+
+
+    //// ALU ////
+    // The y input of the ALU is determined by the a-bit of the instruction.
+    Mux16(a=A, b=inM, sel=aBit, out=yALU);
+    ALU(x=D, y=yALU, zx=zx, nx=nx, zy=zy, ny=ny, f=f, no=no, out=outALU, out=outM, zr=zr, ng=ng);
+
+
+
+    //// PROGRAM COUNTER ////
+    // Priority reset > load > inc.
+    // By default, we want to inc so we set inc=True.
+    // If a jump is triggered, we set load=True with in=A which overrides the increment.
+    // Finally, both inc and load get overridden if reset=1, in which case, the
+    // program counter is set to 0 effectively restarting our program.
+    //
+    // NOTE: While this resets our program, it should be noted that the
+    // registers A/D and the RAM do not get reset. That is, a program should
+    // not assume that by default, registers and RAM addresses hold a value of
+    // 0, they should always initialize values.
+    And(a=ng, b=jumpIfLess, out=jumpForLess);
+    And(a=zr, b=jumpIfZero, out=jumpForZero);
+
+    Not(in=zr, out=notZero);
+    Not(in=ng, out=notNegative);
+    And(a=notNegative, b=notZero, out=jumpForMoreTemp);
+    And(a=jumpForMoreTemp, b=jumpIfMore, out=jumpForMore);
+
+    Or(a=jumpForLess, b=jumpForZero, out=jumpTemp1);
+    Or(a=jumpTemp1, b=jumpForMore, out=jumpTemp2);
+    And(a=isCInstruction, b=jumpTemp2, out=doJump);
+
+    PC(in=A, inc=true, load=doJump, reset=reset, out[0..14]=pc);
+
+
+    //// Output ////
+    And(a=isCInstruction, b=saveToM, out=writeM);
 }
