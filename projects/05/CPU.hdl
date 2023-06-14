@@ -233,11 +233,12 @@ CHIP CPU {
     // D register
     //
     // The value of the D register will always be the ALU's output, but we only
-    // write to it if saveToD is set.
+    // write to it if saveToD is set and we are running a C-instruction.
     //
     // NOTE: We use the DRegister chip here instead of the regular Register chip
     // so the simulation software can show us it's value for debugging.
-    DRegister(in=outALU, load=saveToD, out=D);
+    And(a=isCInstruction, b=saveToD, out=loadD);
+    DRegister(in=outALU, load=loadD, out=D);
 
 
 
