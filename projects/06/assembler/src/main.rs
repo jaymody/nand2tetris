@@ -56,36 +56,49 @@ impl<'a> Assembler<'a> {
 
         let comp_table = HashMap::from([
             // constants
-            ("0", "101010"),
-            ("1", "111111"),
-            ("-1", "111010"),
+            ("0", "0101010"),
+            ("1", "0111111"),
+            ("-1", "0111010"),
             // pass through value
-            ("D", "001100"),
-            ("A", "110000"),
+            ("D", "0001100"),
+            ("A", "0110000"),
+            ("M", "1110000"),
             // bitwise NOT
-            ("!D", "001101"),
-            ("!A", "110001"),
+            ("!D", "0001101"),
+            ("!A", "0110001"),
+            ("!M", "1110001"),
             // negation
-            ("-D", "001111"),
-            ("-A", "110011"),
+            ("-D", "0001111"),
+            ("-A", "0110011"),
+            ("-M", "1110011"),
             // increment
-            ("D+1", "011111"),
-            ("A+1", "110111"),
+            ("D+1", "0011111"),
+            ("A+1", "0110111"),
+            ("M+1", "1110111"),
             // decrement
-            ("D-1", "001110"),
-            ("A-1", "110010"),
+            ("D-1", "0001110"),
+            ("A-1", "0110010"),
+            ("M-1", "1110010"),
             // addition
-            ("D+A", "000010"),
-            ("A+D", "000010"),
+            ("D+A", "0000010"),
+            ("A+D", "0000010"),
+            ("D+M", "1000010"),
+            ("M+D", "1000010"),
             // subtraction
-            ("D-A", "010011"),
-            ("A-D", "000111"),
+            ("D-A", "0010011"),
+            ("A-D", "0000111"),
+            ("D-M", "1010011"),
+            ("M-D", "1000111"),
             // bitwise AND
-            ("D&A", "000000"),
-            ("A&D", "000000"),
+            ("D&A", "0000000"),
+            ("A&D", "0000000"),
+            ("D&M", "1000000"),
+            ("M&D", "1000000"),
             // bitwise OR
-            ("D|A", "010101"),
-            ("A|D", "010101"),
+            ("D|A", "0010101"),
+            ("A|D", "0010101"),
+            ("D|M", "1010101"),
+            ("M|D", "1010101"),
         ]);
 
         let jump_table = HashMap::from([
@@ -228,29 +241,18 @@ impl<'a> Assembler<'a> {
         let (comp_exp, jump_exp) = rest.split_once(";").unwrap_or((rest, ""));
 
         // map expressions to their corresponding machine code
-        let dest_code = self
-            .dest_table
-            .get(dest_exp)
-            .expect(&format!("invalid dest expression: {}", dest_exp));
-        let jump_code = self
-            .jump_table
-            .get(jump_exp)
-            .expect(&format!("invalid jump expression: {}", jump_exp));
-        let comp_code = self
-            .comp_table
-            .get(comp_exp)
-            .map(|s| format!("0{}", s)) // a-bit is 0
-            .or(
-                // comp table only includes expressions involving A,
-                // so to also match expressions that use M instead
-                // of A, we replace instances of M with A and
-                // perform the lookup again, if a match is found,
-                // this means tha A-bit should be 1
-                self.comp_table
-                    .get(comp_exp.replace("M", "A").as_str())
-                    .map(|s| format!("1{}", s)),
-            )
-            .expect(&format!("invalid comp expression: {}", comp_exp));
+        let dest_code = self.dest_table.get(dest_exp).expect(&format!(
+            "invalid dest expression: {dest_exp}\nmust be one of {:?}",
+            self.dest_table.keys()
+        ));
+        let jump_code = self.jump_table.get(jump_exp).expect(&format!(
+            "invalid jump expression: {jump_exp}\nmust be one of {:?}",
+            self.jump_table.keys()
+        ));
+        let comp_code = self.comp_table.get(comp_exp).expect(&format!(
+            "invalid comp expression: {comp_exp}\nmust be one of {:?}",
+            self.comp_table.keys()
+        ));
 
         format!("111{}{}{}", comp_code, dest_code, jump_code)
     }
