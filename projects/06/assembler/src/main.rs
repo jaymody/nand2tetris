@@ -1,6 +1,6 @@
 use core::panic;
 use lazy_static::lazy_static;
-use std::collections::HashMap;
+use std::{collections::HashMap, fs};
 
 lazy_static! {
     static ref DEST_TABLE: HashMap<&'static str, &'static str>  = { HashMap::from([
@@ -89,11 +89,13 @@ lazy_static! {
     ])};
 
     static ref RESERVED_SYMBOLS: HashMap<&'static str, u16>  = { HashMap::from([
+        // special symbols
         ("SP", 0),
         ("LCL", 1),
         ("ARG", 2),
         ("THIS", 3),
         ("THAT", 4),
+        // registers
         ("R0", 0),
         ("R1", 1),
         ("R2", 2),
@@ -110,6 +112,7 @@ lazy_static! {
         ("R13", 13),
         ("R14", 14),
         ("R15", 15),
+        // io devices memory map start addresses
         ("SCREEN", 16384),
         ("KBD", 24576),
     ])};
@@ -231,10 +234,15 @@ fn assemble_c_expression(exp: &str) -> String {
 }
 
 fn main() {
-    let filename = std::env::args().nth(1).expect("no filename given");
-    let code = std::fs::read_to_string(filename).unwrap();
+    let infile = std::env::args().nth(1).expect("no filename given");
+    let mut outfile = infile
+        .strip_suffix(".asm")
+        .expect("filename must end in .asm")
+        .to_string();
+    outfile.push_str(".hack");
+
+    let code = std::fs::read_to_string(infile).unwrap();
     let machine_code = assemble(&code);
-    for code in machine_code {
-        println!("{code}");
-    }
+
+    fs::write(outfile, machine_code.join("\n")).unwrap();
 }
