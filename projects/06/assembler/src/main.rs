@@ -1,3 +1,4 @@
+use core::panic;
 use std::collections::HashMap;
 
 fn remove_comments(s: String) -> String {
@@ -15,6 +16,7 @@ struct Assembler<'a> {
     dest_table: HashMap<&'a str, &'a str>,
     comp_table: HashMap<&'a str, &'a str>,
     jump_table: HashMap<&'a str, &'a str>,
+    reserved_symbols: HashMap<&'a str, u16>,
 }
 
 enum Instruction {
@@ -97,10 +99,37 @@ impl<'a> Assembler<'a> {
             ("JMP", "111"), // always jump
         ]);
 
+        let reserved_symbols = HashMap::from([
+            ("SP", 0),
+            ("LCL", 1),
+            ("ARG", 2),
+            ("THIS", 3),
+            ("THAT", 4),
+            ("R0", 0),
+            ("R1", 1),
+            ("R2", 2),
+            ("R3", 3),
+            ("R4", 4),
+            ("R5", 5),
+            ("R6", 6),
+            ("R7", 7),
+            ("R8", 8),
+            ("R9", 9),
+            ("R10", 10),
+            ("R11", 11),
+            ("R12", 12),
+            ("R13", 13),
+            ("R14", 14),
+            ("R15", 15),
+            ("SCREEN", 16384),
+            ("KBD", 24576),
+        ]);
+
         Self {
-            dest_table: dest_table,
-            comp_table: comp_table,
-            jump_table: jump_table,
+            dest_table,
+            comp_table,
+            jump_table,
+            reserved_symbols,
         }
     }
 
@@ -137,18 +166,27 @@ impl<'a> Assembler<'a> {
                     .strip_suffix(")")
                     .expect("( was not closed")
                     .to_string();
+                if self.reserved_symbols.contains_key(label.as_str()) {
+                    panic!(
+                        "label ({label}) cannot be one of the reserved symbols {:?}",
+                        self.reserved_symbols.keys()
+                    );
+                }
                 symbols.insert(label, instructions.len() as u16);
             } else {
                 let instruction = match exp.strip_prefix("@") {
                     Some(k) => match k.parse::<u16>() {
                         Ok(val) => Instruction::ALiteral(val),
-                        Err(_) => {
-                            if !symbols.contains_key(k) {
-                                symbols.insert(k.to_string(), symbol_counter);
-                                symbol_counter += 1;
+                        Err(_) => match self.reserved_symbols.get(k) {
+                            Some(val) => Instruction::ALiteral(*val),
+                            None => {
+                                if !symbols.contains_key(k) {
+                                    symbols.insert(k.to_string(), symbol_counter);
+                                    symbol_counter += 1;
+                                }
+                                Instruction::ASymbol(k.to_string())
                             }
-                            Instruction::ASymbol(k.to_string())
-                        }
+                        },
                     },
                     None => Instruction::C(exp),
                 };
