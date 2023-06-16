@@ -2,8 +2,10 @@ use core::panic;
 use lazy_static::lazy_static;
 use std::{collections::HashMap, fs};
 
+type StrMap = HashMap<&'static str, &'static str>;
+
 lazy_static! {
-    static ref DEST_TABLE: HashMap<&'static str, &'static str>  = { HashMap::from([
+    static ref DEST_TABLE: StrMap  = { HashMap::from([
         // no destination
         ("", "000"),
         // just M
@@ -30,7 +32,7 @@ lazy_static! {
         ("MDA", "111"),
     ])};
 
-    static ref COMP_TABLE: HashMap<&'static str, &'static str>  = { HashMap::from([
+    static ref COMP_TABLE: StrMap  = { HashMap::from([
         // constants
         ("0", "0101010"),
         ("1", "0111111"),
@@ -77,7 +79,7 @@ lazy_static! {
         ("M|D", "1010101"),
     ])};
 
-    static ref JUMP_TABLE: HashMap<&'static str, &'static str>  = { HashMap::from([
+    static ref JUMP_TABLE: StrMap  = { HashMap::from([
         ("", "000"),    // no jump
         ("JGT", "001"), // > 0
         ("JEQ", "010"), // = 0
@@ -118,10 +120,14 @@ lazy_static! {
     ])};
 }
 
+enum Command {
+    Label(String),
+    A(String),
+    C(String),
+}
+
 fn remove_comments(s: String) -> String {
-    s.split_once("//")
-        .map(|(exp, _)| exp.to_string())
-        .unwrap_or(s)
+    s.split_once("//").map(|(s, _)| s.to_string()).unwrap_or(s)
 }
 
 fn remove_whitespace(mut s: String) -> String {
@@ -129,82 +135,57 @@ fn remove_whitespace(mut s: String) -> String {
     s
 }
 
-enum Instruction {
-    A(String),
-    C(String),
+fn get_command(line: &str) -> Option<Command> {
+    let mut line = line.to_string();
+    line = remove_comments(line);
+    line = remove_whitespace(line);
+
+    if line.is_empty() {
+        return None;
+    }
+
+    let command = match line.split_at(1) {
+        ("(", s) => Command::Label(s.strip_suffix(')').expect("( was not closed").to_string()),
+        ("@", s) => Command::A(s.to_string()),
+        _ => Command::C(line),
+    };
+
+    Some(command)
 }
 
-fn assemble(code: &str) -> String {
-    let (instructions, labels) = parse_code(code);
-    let machine_code = assemble_instructions(&instructions, &labels);
-    let mut output = machine_code.join("\n");
-    output.push_str("\n"); // add a final newline so we can directly compare with nand2tetris implementation
-    output
-}
-
-fn parse_code(code: &str) -> (Vec<Instruction>, HashMap<String, u16>) {
+fn assemble(text: &str) -> Vec<String> {
     let mut instructions = Vec::new();
     let mut labels = HashMap::new();
 
-    for line in code.lines() {
-        let exp = remove_whitespace(remove_comments(line.to_string()));
-
-        if exp.is_empty() {
-            continue;
-        }
-
-        if exp.starts_with("(") {
-            let label = exp
-                .strip_prefix("(")
-                .unwrap()
-                .strip_suffix(")")
-                .expect("( was not closed")
-                .to_string();
-
-            if RESERVED_SYMBOLS.contains_key(label.as_str()) {
-                panic!(
-                    "label ({label}) cannot be one of the reserved symbols {:?}",
-                    RESERVED_SYMBOLS.keys()
-                );
-            }
-
-            if labels.contains_key(label.as_str()) {
-                panic!("label ({label}) has already been specified")
-            }
-
-            labels.insert(label, instructions.len() as u16);
-        } else {
-            let instruction = match exp.strip_prefix("@") {
-                Some(suffix) => Instruction::A(suffix.to_string()),
-                None => Instruction::C(exp),
+    for line in text.lines() {
+        if let Some(command) = get_command(line) {
+            match command {
+                Command::Label(label) => {
+                    if RESERVED_SYMBOLS.contains_key(label.as_str()) {
+                        panic!(
+                            "label ({label}) cannot be one of the reserved symbols {:?}",
+                            RESERVED_SYMBOLS.keys()
+                        );
+                    }
+                    if labels.contains_key(label.as_str()) {
+                        panic!("label ({label}) has already been specified");
+                    }
+                    labels.insert(label, instructions.len() as u16);
+                }
+                _ => instructions.push(command),
             };
-            instructions.push(instruction);
-        }
+        };
     }
 
-    (instructions, labels)
-}
-
-fn assemble_instructions(
-    instructions: &Vec<Instruction>,
-    labels: &HashMap<String, u16>,
-) -> Vec<String> {
     let mut symbols = HashMap::new();
     instructions
         .into_iter()
-        .map(|instruction| assemble_instruction(instruction, labels, &mut symbols))
+        .map(|instruction| match instruction {
+            Command::C(s) => assemble_c_instruction(s.as_str()),
+            Command::A(s) => assemble_a_instruction(s.as_str(), &labels, &mut symbols),
+            Command::Label(_) => panic!("this should be impossible"),
+        })
         .collect()
-}
-
-fn assemble_instruction(
-    instruction: &Instruction,
-    labels: &HashMap<String, u16>,
-    symbols: &mut HashMap<String, u16>,
-) -> String {
-    match instruction {
-        Instruction::A(s) => assemble_a_instruction(s, labels, symbols),
-        Instruction::C(s) => assemble_c_instruction(s),
-    }
 }
 
 fn assemble_a_instruction(
@@ -212,45 +193,37 @@ fn assemble_a_instruction(
     labels: &HashMap<String, u16>,
     symbols: &mut HashMap<String, u16>,
 ) -> String {
-    let val = match s.parse::<u16>() {
-        Ok(num) => num,
-        Err(_) => match RESERVED_SYMBOLS.get(s) {
-            Some(num) => *num,
-            None => match labels.get(s) {
-                Some(num) => *num,
-                None => match symbols.get(s) {
-                    Some(num) => *num,
-                    None => {
-                        let i = symbols.len() as u16 + 16;
-                        symbols.insert(s.to_string(), i);
-                        i
-                    }
-                },
-            },
-        },
-    };
+    // either s is a number, in which case we just parse it
+    let val = s.parse().unwrap_or_else(|_| {
+        // or its in our table of reserved symbols
+        *RESERVED_SYMBOLS.get(s).unwrap_or_else(|| {
+            // or its in our table of labels
+            labels.get(s).unwrap_or_else(|| {
+                // or its in our table of symbols, else we make a new entry
+                let location = symbols.len() as u16 + 16;
+                symbols.entry(s.to_string()).or_insert(location)
+            })
+        })
+    });
 
     format!("0{:015b}", val)
 }
 
 fn assemble_c_instruction(s: &str) -> String {
-    // get c instruction expression components
-    let (dest_exp, rest) = s.split_once("=").unwrap_or(("", &s));
-    let (comp_exp, jump_exp) = rest.split_once(";").unwrap_or((rest, ""));
+    let (dest_exp, rest) = s.split_once('=').unwrap_or(("", s));
+    let (comp_exp, jump_exp) = rest.split_once(';').unwrap_or((rest, ""));
 
-    // map expressions to their corresponding machine code
-    let dest_code = DEST_TABLE.get(dest_exp).expect(&format!(
-        "invalid dest expression: {dest_exp}\nmust be one of {:?}",
-        DEST_TABLE.keys()
-    ));
-    let jump_code = JUMP_TABLE.get(jump_exp).expect(&format!(
-        "invalid jump expression: {jump_exp}\nmust be one of {:?}",
-        JUMP_TABLE.keys()
-    ));
-    let comp_code = COMP_TABLE.get(comp_exp).expect(&format!(
-        "invalid comp expression: {comp_exp}\nmust be one of {:?}",
-        COMP_TABLE.keys()
-    ));
+    fn exp_to_machine_code<'a>(name: &'a str, exp: &'a str, table: &'a StrMap) -> &'a str {
+        table.get(exp).unwrap_or_else(|| {
+            panic!(
+                "invalid {name} expression: {exp}\nmust be one of {:?}",
+                table.keys()
+            )
+        })
+    }
+    let dest_code = exp_to_machine_code("dest", dest_exp, &DEST_TABLE);
+    let comp_code = exp_to_machine_code("comp", comp_exp, &COMP_TABLE);
+    let jump_code = exp_to_machine_code("jump", jump_exp, &JUMP_TABLE);
 
     format!("111{}{}{}", comp_code, dest_code, jump_code)
 }
@@ -263,8 +236,11 @@ fn main() {
         .to_string();
     outfile.push_str(".hack");
 
-    let code = std::fs::read_to_string(infile).unwrap();
-    let output = assemble(&code);
+    let text = std::fs::read_to_string(infile).unwrap();
+    let machine_code = assemble(&text);
+
+    let mut output = machine_code.join("\n");
+    output.push('\n'); // add a final newline so we can directly compare with nand2tetris implementation
 
     fs::write(outfile, output).unwrap();
 }
