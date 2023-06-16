@@ -130,21 +130,21 @@ fn remove_whitespace(mut s: String) -> String {
 }
 
 enum Instruction {
-    ALiteral(u16),
-    ASymbol(String),
+    A(String),
     C(String),
 }
 
-fn assemble(code: &str) -> Vec<String> {
-    let (instructions, symbols) = parse_code(code);
-    let machine_code = assemble_instructions(&instructions, &symbols);
-    machine_code
+fn assemble(code: &str) -> String {
+    let (instructions, labels) = parse_code(code);
+    let machine_code = assemble_instructions(&instructions, &labels);
+    let mut output = machine_code.join("\n");
+    output.push_str("\n"); // add a final newline so we can directly compare with nand2tetris implementation
+    output
 }
 
 fn parse_code(code: &str) -> (Vec<Instruction>, HashMap<String, u16>) {
     let mut instructions = Vec::new();
-    let mut symbols = HashMap::new();
-    let mut symbol_counter: u16 = 16;
+    let mut labels = HashMap::new();
 
     for line in code.lines() {
         let exp = remove_whitespace(remove_comments(line.to_string()));
@@ -160,60 +160,82 @@ fn parse_code(code: &str) -> (Vec<Instruction>, HashMap<String, u16>) {
                 .strip_suffix(")")
                 .expect("( was not closed")
                 .to_string();
+
             if RESERVED_SYMBOLS.contains_key(label.as_str()) {
                 panic!(
                     "label ({label}) cannot be one of the reserved symbols {:?}",
                     RESERVED_SYMBOLS.keys()
                 );
             }
-            symbols.insert(label, instructions.len() as u16);
+
+            if labels.contains_key(label.as_str()) {
+                panic!("label ({label}) has already been specified")
+            }
+
+            labels.insert(label, instructions.len() as u16);
         } else {
             let instruction = match exp.strip_prefix("@") {
-                Some(k) => match k.parse::<u16>() {
-                    Ok(val) => Instruction::ALiteral(val),
-                    Err(_) => match RESERVED_SYMBOLS.get(k) {
-                        Some(val) => Instruction::ALiteral(*val),
-                        None => {
-                            if !symbols.contains_key(k) {
-                                symbols.insert(k.to_string(), symbol_counter);
-                                symbol_counter += 1;
-                            }
-                            Instruction::ASymbol(k.to_string())
-                        }
-                    },
-                },
+                Some(suffix) => Instruction::A(suffix.to_string()),
                 None => Instruction::C(exp),
             };
             instructions.push(instruction);
         }
     }
 
-    (instructions, symbols)
+    (instructions, labels)
 }
 
 fn assemble_instructions(
     instructions: &Vec<Instruction>,
-    symbols: &HashMap<String, u16>,
+    labels: &HashMap<String, u16>,
 ) -> Vec<String> {
+    let mut symbols = HashMap::new();
     instructions
         .into_iter()
-        .map(|instruction| assemble_instruction(instruction, symbols))
+        .map(|instruction| assemble_instruction(instruction, labels, &mut symbols))
         .collect()
 }
 
-fn assemble_instruction(instruction: &Instruction, symbols: &HashMap<String, u16>) -> String {
+fn assemble_instruction(
+    instruction: &Instruction,
+    labels: &HashMap<String, u16>,
+    symbols: &mut HashMap<String, u16>,
+) -> String {
     match instruction {
-        Instruction::ALiteral(val) => format!("0{:015b}", val),
-        Instruction::ASymbol(name) => {
-            format!("0{:015b}", symbols.get(&name.to_string()).unwrap())
-        }
-        Instruction::C(exp) => assemble_c_expression(exp),
+        Instruction::A(s) => assemble_a_instruction(s, labels, symbols),
+        Instruction::C(s) => assemble_c_instruction(s),
     }
 }
 
-fn assemble_c_expression(exp: &str) -> String {
+fn assemble_a_instruction(
+    s: &str,
+    labels: &HashMap<String, u16>,
+    symbols: &mut HashMap<String, u16>,
+) -> String {
+    let val = match s.parse::<u16>() {
+        Ok(num) => num,
+        Err(_) => match RESERVED_SYMBOLS.get(s) {
+            Some(num) => *num,
+            None => match labels.get(s) {
+                Some(num) => *num,
+                None => match symbols.get(s) {
+                    Some(num) => *num,
+                    None => {
+                        let i = symbols.len() as u16 + 16;
+                        symbols.insert(s.to_string(), i);
+                        i
+                    }
+                },
+            },
+        },
+    };
+
+    format!("0{:015b}", val)
+}
+
+fn assemble_c_instruction(s: &str) -> String {
     // get c instruction expression components
-    let (dest_exp, rest) = exp.split_once("=").unwrap_or(("", &exp));
+    let (dest_exp, rest) = s.split_once("=").unwrap_or(("", &s));
     let (comp_exp, jump_exp) = rest.split_once(";").unwrap_or((rest, ""));
 
     // map expressions to their corresponding machine code
@@ -242,7 +264,7 @@ fn main() {
     outfile.push_str(".hack");
 
     let code = std::fs::read_to_string(infile).unwrap();
-    let machine_code = assemble(&code);
+    let output = assemble(&code);
 
-    fs::write(outfile, machine_code.join("\n")).unwrap();
+    fs::write(outfile, output).unwrap();
 }
