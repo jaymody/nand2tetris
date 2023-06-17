@@ -42,7 +42,6 @@ impl Translator {
     fn emit_load_constant(&mut self, val: u16) {
         self.emit(&format!(
             "
-            //// load constant ////
             @{val}
             D=A
             ",
@@ -54,7 +53,6 @@ impl Translator {
     fn emit_stack_push(&mut self) {
         self.emit(
             "
-            //// push to stack ////
             @SP
             A=M
             M=D
@@ -69,7 +67,6 @@ impl Translator {
     fn emit_stack_pop(&mut self) {
         self.emit(
             "
-            //// pop stack ///
             @SP
             AM=M-1
             D=M
@@ -81,7 +78,6 @@ impl Translator {
     fn emit_unary_op(&mut self, op: &str) {
         self.emit(&format!(
             "
-            //// apply unary op to stack head ////
             @SP
             A=M-1
             M={op}M
@@ -94,7 +90,6 @@ impl Translator {
         self.emit_stack_pop();
         self.emit(&format!(
             "
-            //// apply binary op to stack head and D ////
             @SP
             A=M-1
             M={op}
@@ -113,10 +108,7 @@ impl Translator {
         self.emit_stack_pop();
         self.emit(&format!(
             "
-            //// perform comparison on stack head and D ////
-            // if the comparison is true stack is set to = -1 else 0
-
-            // D=x-y
+            // D = head - stack.pop()
             @SP
             A=M-1
             D=M-D
@@ -125,14 +117,14 @@ impl Translator {
             @{set_to_true_label}
             D;{op}
 
-            // condition did not trigger, so x=false (x=0)
+            // condition did not trigger, so set head=false=0
             @SP
             A=M-1
             M=0
             @{end_comparison_label}
             0;JMP
 
-            // condition triggered, so x=true (x=-1)
+            // condition triggered, so x=true=-1
             ({set_to_true_label})
             @SP
             A=M-1
