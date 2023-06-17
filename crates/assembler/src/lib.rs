@@ -3,6 +3,7 @@ use std::{collections::HashMap, str::FromStr};
 
 macro_rules! create_enum {
     ($enumName:ident, $($name:ident => $num:expr => $str:expr),*,) => {
+        #[derive(Clone)]
         pub enum $enumName {
             $($name = $num),*
         }
@@ -133,67 +134,56 @@ enum Command {
     C(String),
 }
 
-fn remove_comments(s: String) -> String {
-    s.split_once("//").map(|(s, _)| s.to_string()).unwrap_or(s)
+pub enum Instruction {
+    A(u16),
+    C(Comp, Dest, Jump),
 }
 
-fn remove_whitespace(mut s: String) -> String {
-    s.retain(|c| !c.is_whitespace());
-    s
+impl ToString for Instruction {
+    fn to_string(&self) -> String {
+        match self {
+            Instruction::A(val) => format!("0{:015b}", val),
+            Instruction::C(comp, dest, jump) => {
+                format!(
+                    "111{:07b}{:03b}{:03b}",
+                    comp.clone() as u16,
+                    dest.clone() as u16,
+                    jump.clone() as u16
+                )
+            }
+        }
+    }
 }
 
-fn parse_command(line: &str) -> Option<Command> {
-    let mut line = line.to_string();
-    line = remove_comments(line);
-    line = remove_whitespace(line);
-
-    if line.is_empty() {
-        return None;
+pub fn parse(text: &str) -> Vec<Instruction> {
+    fn remove_comments(s: String) -> String {
+        s.split_once("//").map(|(s, _)| s.to_string()).unwrap_or(s)
     }
 
-    let command = match line.split_at(1) {
-        ("(", s) => Command::Label(s.strip_suffix(')').expect("( was not closed").to_string()),
-        ("@", s) => Command::A(s.to_string()),
-        _ => Command::C(line),
-    };
+    fn remove_whitespace(mut s: String) -> String {
+        s.retain(|c| !c.is_whitespace());
+        s
+    }
 
-    Some(command)
-}
+    fn parse_command(line: &str) -> Option<Command> {
+        let mut line = line.to_string();
+        line = remove_comments(line);
+        line = remove_whitespace(line);
 
-fn translate_a_instruction(
-    s: &str,
-    labels: &HashMap<String, u16>,
-    symbols: &mut HashMap<String, u16>,
-) -> String {
-    // either s is a number, in which case we just parse it
-    let val = s.parse().unwrap_or_else(|_| {
-        // or its in our table of reserved symbols
-        reserved_symbol_lookup(s).unwrap_or_else(|| {
-            // or its in our table of labels
-            *labels.get(s).unwrap_or_else(|| {
-                // or its in our table of symbols, else we make a new entry
-                let location = symbols.len() as u16 + 16;
-                symbols.entry(s.to_string()).or_insert(location)
-            })
-        })
-    });
+        if line.is_empty() {
+            return None;
+        }
 
-    format!("0{:015b}", val)
-}
+        let command = match line.split_at(1) {
+            ("(", s) => Command::Label(s.strip_suffix(')').expect("( was not closed").to_string()),
+            ("@", s) => Command::A(s.to_string()),
+            _ => Command::C(line),
+        };
 
-fn translate_c_instruction(s: &str) -> String {
-    let (dest_exp, rest) = s.split_once('=').unwrap_or(("", s));
-    let (comp_exp, jump_exp) = rest.split_once(';').unwrap_or((rest, ""));
+        Some(command)
+    }
 
-    let dest_code = Dest::from_str(dest_exp).unwrap() as u16;
-    let comp_code = Comp::from_str(comp_exp).unwrap() as u16;
-    let jump_code = Jump::from_str(jump_exp).unwrap() as u16;
-
-    format!("111{:07b}{:03b}{:03b}", comp_code, dest_code, jump_code)
-}
-
-pub fn translate(text: &str) -> Vec<String> {
-    let mut instructions = Vec::new();
+    let mut commands = Vec::new();
     let mut labels = HashMap::new();
 
     for line in text.lines() {
@@ -206,20 +196,51 @@ pub fn translate(text: &str) -> Vec<String> {
                     if labels.contains_key(label.as_str()) {
                         panic!("label ({label}) has already been used");
                     }
-                    labels.insert(label, instructions.len() as u16);
+                    labels.insert(label, commands.len() as u16);
                 }
-                _ => instructions.push(command),
+                _ => commands.push(command),
             };
         };
     }
 
     let mut symbols = HashMap::new();
-    instructions
+    commands
         .into_iter()
-        .map(|instruction| match instruction {
-            Command::C(s) => translate_c_instruction(s.as_str()),
-            Command::A(s) => translate_a_instruction(s.as_str(), &labels, &mut symbols),
-            Command::Label(_) => panic!("this should be impossible"),
+        .map(|command| match command {
+            Command::A(s) => {
+                // either s is a number, in which case we just parse it
+                let val = s.parse().unwrap_or_else(|_| {
+                    // or its in our table of reserved symbols
+                    reserved_symbol_lookup(&s).unwrap_or_else(|| {
+                        // or its in our table of labels
+                        *labels.get(&s).unwrap_or_else(|| {
+                            // or its in our table of symbols, else we make a new entry
+                            let location = symbols.len() as u16 + 16;
+                            symbols.entry(s.to_string()).or_insert(location)
+                        })
+                    })
+                });
+                Instruction::A(val)
+            }
+            Command::C(s) => {
+                let (dest_exp, rest) = s.split_once('=').unwrap_or(("", &s));
+                let (comp_exp, jump_exp) = rest.split_once(';').unwrap_or((rest, ""));
+
+                Instruction::C(
+                    Comp::from_str(comp_exp).unwrap(),
+                    Dest::from_str(dest_exp).unwrap(),
+                    Jump::from_str(jump_exp).unwrap(),
+                )
+            }
+            _ => panic!("unreachable"),
         })
         .collect()
+}
+
+pub fn assemble(instructions: Vec<Instruction>) -> String {
+    instructions
+        .into_iter()
+        .map(|instruction| instruction.to_string())
+        .collect::<Vec<String>>()
+        .join("\n")
 }

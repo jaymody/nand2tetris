@@ -1,4 +1,4 @@
-use assembler::translate;
+use assembler::{assemble, parse};
 
 fn main() {
     let infile = std::env::args().nth(1).expect("no filename given");
@@ -9,10 +9,9 @@ fn main() {
     outfile.push_str(".hack");
 
     let text = std::fs::read_to_string(infile).unwrap();
-    let machine_code = translate(&text);
+    let instructions = parse(&text);
+    let mut machine_code = assemble(instructions);
+    machine_code.push('\n'); // add a final newline so we can directly compare with nand2tetris implementation
 
-    let mut output = machine_code.join("\n");
-    output.push('\n'); // add a final newline so we can directly compare with nand2tetris implementation
-
-    std::fs::write(outfile, output).unwrap();
+    std::fs::write(outfile, machine_code).unwrap();
 }
