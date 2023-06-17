@@ -1,123 +1,130 @@
 use core::panic;
-use lazy_static::lazy_static;
-use std::{collections::HashMap, fs};
+use std::{collections::HashMap, fs, str::FromStr};
 
-type StrMap = HashMap<&'static str, &'static str>;
+macro_rules! create_enum {
+    ($enumName:ident, $($name:ident => $num:expr => $str:expr),*,) => {
+        enum $enumName {
+            $($name = $num),*
+        }
 
-lazy_static! {
-    static ref DEST_TABLE: StrMap  = { HashMap::from([
-        // no destination
-        ("", "000"),
-        // just M
-        ("M", "001"),
-        // just D
-        ("D", "010"),
-        // M and D
-        ("MD", "011"),
-        ("DM", "011"),
-        // just A
-        ("A", "100"),
-        // A and M
-        ("AM", "101"),
-        ("MA", "101"),
-        // A and D
-        ("AD", "110"),
-        ("DA", "110"),
-        // A, M, and D
-        ("ADM", "111"),
-        ("AMD", "111"),
-        ("DAM", "111"),
-        ("DMA", "111"),
-        ("MAD", "111"),
-        ("MDA", "111"),
-    ])};
+        impl FromStr for $enumName {
+            type Err = String;
 
-    static ref COMP_TABLE: StrMap  = { HashMap::from([
-        // constants
-        ("0", "0101010"),
-        ("1", "0111111"),
-        ("-1", "0111010"),
-        // pass through value
-        ("D", "0001100"),
-        ("A", "0110000"),
-        ("M", "1110000"),
-        // bitwise NOT
-        ("!D", "0001101"),
-        ("!A", "0110001"),
-        ("!M", "1110001"),
-        // negation
-        ("-D", "0001111"),
-        ("-A", "0110011"),
-        ("-M", "1110011"),
-        // increment
-        ("D+1", "0011111"),
-        ("A+1", "0110111"),
-        ("M+1", "1110111"),
-        // decrement
-        ("D-1", "0001110"),
-        ("A-1", "0110010"),
-        ("M-1", "1110010"),
-        // addition
-        ("D+A", "0000010"),
-        ("A+D", "0000010"),
-        ("D+M", "1000010"),
-        ("M+D", "1000010"),
-        // subtraction
-        ("D-A", "0010011"),
-        ("A-D", "0000111"),
-        ("D-M", "1010011"),
-        ("M-D", "1000111"),
-        // bitwise AND
-        ("D&A", "0000000"),
-        ("A&D", "0000000"),
-        ("D&M", "1000000"),
-        ("M&D", "1000000"),
-        // bitwise OR
-        ("D|A", "0010101"),
-        ("A|D", "0010101"),
-        ("D|M", "1010101"),
-        ("M|D", "1010101"),
-    ])};
+            fn from_str(s: &str) -> Result<Self, Self::Err> {
+                match s {
+                    $($str => Ok(Self::$name),)*
+                    _ => Err(format!("unrecognized $enumName expression {s}")),
+                }
+            }
+        }
 
-    static ref JUMP_TABLE: StrMap  = { HashMap::from([
-        ("", "000"),    // no jump
-        ("JGT", "001"), // > 0
-        ("JEQ", "010"), // = 0
-        ("JGE", "011"), // ≥ 0
-        ("JLT", "100"), // < 0
-        ("JNE", "101"), // ≠ 0
-        ("JLE", "110"), // ≤ 0
-        ("JMP", "111"), // always jump
-    ])};
+        impl ToString for $enumName {
+            fn to_string(&self) -> String {
+                match self {
+                    $(Self::$name => $str.to_string(),)*
+                }
+            }
+        }
+    };
+}
 
-    static ref RESERVED_SYMBOLS: HashMap<&'static str, u16>  = { HashMap::from([
+create_enum!(
+    Dest,
+    NoDest => 0b000 => "",
+    M => 0b001 => "M",
+    D => 0b010 => "D",
+    MD => 0b011 => "MD",
+    A => 0b100 => "A",
+    AM => 0b101 => "AM",
+    AD => 0b110 => "AD",
+    AMD => 0b1111 => "AMD",
+);
+
+create_enum!(
+    Jump,
+    NoJump => 0b000 => "",  // no jump
+    JGT => 0b001 => "JGT",  // > 0
+    JEQ => 0b010 => "JEQ",  // = 0
+    JGE => 0b011 => "JGE",  // ≥ 0
+    JLT => 0b100 => "JLT",  // < 0
+    JNE => 0b101 => "JNE",  // ≠ 0
+    JLE => 0b110 => "JLE",  // ≤ 0
+    JMP => 0b111 => "JMP",  // always jump
+);
+
+create_enum!(
+    Comp,
+    // constants
+    Zero => 0b0101010 => "0",
+    One => 0b0111111 => "1",
+    NegOne => 0b0111010 => "-1",
+    // identity
+    D => 0b0001100 => "D",
+    A => 0b0110000 => "A",
+    M => 0b1110000 => "M",
+    // bitwise NOT
+    NotD => 0b0001101 => "!D",
+    NotA => 0b0110001 => "!A",
+    NotM => 0b1110001 => "!M",
+    // negation
+    NegD => 0b0001111 => "-D",
+    NegA => 0b0110011 => "-A",
+    NegM => 0b1110011 => "-M",
+    // increment
+    IncD => 0b0011111 => "D+1",
+    IncA => 0b0110111 => "A+1",
+    IncM => 0b1110111 => "M+1",
+    // decrement
+    DecD => 0b0001110 => "D-1",
+    DecA => 0b0110010 => "A-1",
+    DecM => 0b1110010 => "M-1",
+    // addition
+    AddA => 0b0000010 => "D+A",
+    AddM => 0b1000010 => "D+M",
+    // subtraction
+    SubDA => 0b0010011 => "D-A",
+    SubAD => 0b0000111 => "A-D",
+    SubDM => 0b1010011 => "D-M",
+    SubMD => 0b1000111 => "M-D",
+    // bitwise AND
+    AndA => 0b0000000 => "D&A",
+    AndD => 0b1000000 => "D&M",
+    // bitwise OR
+    OrA => 0b0010101 => "D|A",
+    OrD => 0b1010101 => "D|M",
+);
+
+fn reserved_symbol_lookup(s: &str) -> Option<u16> {
+    match s {
         // special symbols
-        ("SP", 0),
-        ("LCL", 1),
-        ("ARG", 2),
-        ("THIS", 3),
-        ("THAT", 4),
+        "SP" => Some(0),
+        "LCL" => Some(1),
+        "ARG" => Some(2),
+        "THIS" => Some(3),
+        "THAT" => Some(4),
         // registers
-        ("R0", 0),
-        ("R1", 1),
-        ("R2", 2),
-        ("R3", 3),
-        ("R4", 4),
-        ("R5", 5),
-        ("R6", 6),
-        ("R7", 7),
-        ("R8", 8),
-        ("R9", 9),
-        ("R10", 10),
-        ("R11", 11),
-        ("R12", 12),
-        ("R13", 13),
-        ("R14", 14),
-        ("R15", 15),
+        "R0" => Some(0),
+        "R1" => Some(1),
+        "R2" => Some(2),
+        "R3" => Some(3),
+        "R4" => Some(4),
+        "R5" => Some(5),
+        "R6" => Some(6),
+        "R7" => Some(7),
+        "R8" => Some(8),
+        "R9" => Some(9),
+        "R10" => Some(10),
+        "R11" => Some(11),
+        "R12" => Some(12),
+        "R13" => Some(13),
+        "R14" => Some(14),
+        "R15" => Some(15),
         // io devices memory map start addresses
-        ("SCREEN", 16384),
-        ("KBD", 24576),
-    ])};
+        "SCREEN" => Some(16384),
+        "KBD" => Some(24576),
+        // no match found
+        _ => None,
+    }
 }
 
 enum Command {
@@ -135,7 +142,7 @@ fn remove_whitespace(mut s: String) -> String {
     s
 }
 
-fn get_command(line: &str) -> Option<Command> {
+fn parse_command(line: &str) -> Option<Command> {
     let mut line = line.to_string();
     line = remove_comments(line);
     line = remove_whitespace(line);
@@ -153,22 +160,19 @@ fn get_command(line: &str) -> Option<Command> {
     Some(command)
 }
 
-fn assemble(text: &str) -> Vec<String> {
+fn translate(text: &str) -> Vec<String> {
     let mut instructions = Vec::new();
     let mut labels = HashMap::new();
 
     for line in text.lines() {
-        if let Some(command) = get_command(line) {
+        if let Some(command) = parse_command(line) {
             match command {
                 Command::Label(label) => {
-                    if RESERVED_SYMBOLS.contains_key(label.as_str()) {
-                        panic!(
-                            "label ({label}) cannot be one of the reserved symbols {:?}",
-                            RESERVED_SYMBOLS.keys()
-                        );
+                    if reserved_symbol_lookup(label.as_str()).is_some() {
+                        panic!("label ({label}) is a reserved symbol");
                     }
                     if labels.contains_key(label.as_str()) {
-                        panic!("label ({label}) has already been specified");
+                        panic!("label ({label}) has already been used");
                     }
                     labels.insert(label, instructions.len() as u16);
                 }
@@ -181,14 +185,14 @@ fn assemble(text: &str) -> Vec<String> {
     instructions
         .into_iter()
         .map(|instruction| match instruction {
-            Command::C(s) => assemble_c_instruction(s.as_str()),
-            Command::A(s) => assemble_a_instruction(s.as_str(), &labels, &mut symbols),
+            Command::C(s) => translate_c_instruction(s.as_str()),
+            Command::A(s) => translate_a_instruction(s.as_str(), &labels, &mut symbols),
             Command::Label(_) => panic!("this should be impossible"),
         })
         .collect()
 }
 
-fn assemble_a_instruction(
+fn translate_a_instruction(
     s: &str,
     labels: &HashMap<String, u16>,
     symbols: &mut HashMap<String, u16>,
@@ -196,9 +200,9 @@ fn assemble_a_instruction(
     // either s is a number, in which case we just parse it
     let val = s.parse().unwrap_or_else(|_| {
         // or its in our table of reserved symbols
-        *RESERVED_SYMBOLS.get(s).unwrap_or_else(|| {
+        reserved_symbol_lookup(s).unwrap_or_else(|| {
             // or its in our table of labels
-            labels.get(s).unwrap_or_else(|| {
+            *labels.get(s).unwrap_or_else(|| {
                 // or its in our table of symbols, else we make a new entry
                 let location = symbols.len() as u16 + 16;
                 symbols.entry(s.to_string()).or_insert(location)
@@ -209,23 +213,15 @@ fn assemble_a_instruction(
     format!("0{:015b}", val)
 }
 
-fn assemble_c_instruction(s: &str) -> String {
+fn translate_c_instruction(s: &str) -> String {
     let (dest_exp, rest) = s.split_once('=').unwrap_or(("", s));
     let (comp_exp, jump_exp) = rest.split_once(';').unwrap_or((rest, ""));
 
-    fn exp_to_machine_code<'a>(name: &'a str, exp: &'a str, table: &'a StrMap) -> &'a str {
-        table.get(exp).unwrap_or_else(|| {
-            panic!(
-                "invalid {name} expression: {exp}\nmust be one of {:?}",
-                table.keys()
-            )
-        })
-    }
-    let dest_code = exp_to_machine_code("dest", dest_exp, &DEST_TABLE);
-    let comp_code = exp_to_machine_code("comp", comp_exp, &COMP_TABLE);
-    let jump_code = exp_to_machine_code("jump", jump_exp, &JUMP_TABLE);
+    let dest_code = Dest::from_str(dest_exp).unwrap() as u16;
+    let comp_code = Comp::from_str(comp_exp).unwrap() as u16;
+    let jump_code = Jump::from_str(jump_exp).unwrap() as u16;
 
-    format!("111{}{}{}", comp_code, dest_code, jump_code)
+    format!("111{:07b}{:03b}{:03b}", comp_code, dest_code, jump_code)
 }
 
 fn main() {
@@ -237,7 +233,7 @@ fn main() {
     outfile.push_str(".hack");
 
     let text = std::fs::read_to_string(infile).unwrap();
-    let machine_code = assemble(&text);
+    let machine_code = translate(&text);
 
     let mut output = machine_code.join("\n");
     output.push('\n'); // add a final newline so we can directly compare with nand2tetris implementation
