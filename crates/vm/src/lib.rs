@@ -4,12 +4,12 @@ mod parser;
 use command::Command;
 use parser::parse;
 
-struct CodeGenerator {
+struct Translator {
     assembly: String,
     label_counter: u16,
 }
 
-/// Assembly code generator.
+/// Translates VM to Assembly.
 ///
 /// For the purposes of documentation:
 ///
@@ -25,33 +25,21 @@ struct CodeGenerator {
 ///     &arg    = RAM[ARG]          (argument base address)
 ///     argN    = RAM[&arg + N]     (argument value at offset N)
 ///
-impl CodeGenerator {
-    pub fn new() -> Self {
-        Self {
-            assembly: String::new(),
-            label_counter: 0,
-        }
-    }
-
+impl Translator {
     /// Creates a new unique label prepended with prefix.
     fn new_label(&mut self, prefix: &str) -> String {
         self.label_counter += 1;
         format!("{prefix}_{}", self.label_counter - 1)
     }
 
-    /// Consume the struct and return the assembly code.
-    pub fn assembly(self) -> String {
-        self.assembly
-    }
-
     /// Write a string to the assembly code.
-    pub fn emit(&mut self, s: &str) {
+    fn emit(&mut self, s: &str) {
         self.assembly.push_str(s);
         self.assembly.push('\n');
     }
 
     /// D = val
-    pub fn emit_load_constant(&mut self, val: u16) {
+    fn emit_load_constant(&mut self, val: u16) {
         self.emit(&format!(
             "
             //// load constant ////
@@ -63,7 +51,7 @@ impl CodeGenerator {
 
     /// head = D
     /// &head += 1
-    pub fn emit_stack_push(&mut self) {
+    fn emit_stack_push(&mut self) {
         self.emit(
             "
             //// push to stack ////
@@ -78,7 +66,7 @@ impl CodeGenerator {
 
     /// &head -= 1
     /// D = head
-    pub fn emit_stack_pop(&mut self) {
+    fn emit_stack_pop(&mut self) {
         self.emit(
             "
             //// pop stack ///
@@ -90,7 +78,7 @@ impl CodeGenerator {
     }
 
     /// head = unary_op head
-    pub fn emit_unary_op(&mut self, op: &str) {
+    fn emit_unary_op(&mut self, op: &str) {
         self.emit(&format!(
             "
             //// apply unary op to stack head ////
@@ -102,7 +90,7 @@ impl CodeGenerator {
     }
 
     /// head = head binary_op stack.pop()
-    pub fn emit_binary_op(&mut self, op: &str) {
+    fn emit_binary_op(&mut self, op: &str) {
         self.emit_stack_pop();
         self.emit(&format!(
             "
@@ -118,7 +106,7 @@ impl CodeGenerator {
     ///     head = -1 (aka true)
     /// else
     ///     head = 0  (aka false)
-    pub fn emit_cmp_op(&mut self, op: &str) {
+    fn emit_cmp_op(&mut self, op: &str) {
         let set_to_true_label = self.new_label("SET_TO_TRUE");
         let end_comparison_label = self.new_label("END_COMPARISON");
 
@@ -154,24 +142,19 @@ impl CodeGenerator {
             ",
         ))
     }
-}
 
-pub fn translate(text: &str) -> String {
-    let mut codegen = CodeGenerator::new();
-    let commands = parse(text);
-
-    for command in commands {
+    fn emit_command(&mut self, command: Command) {
         match command {
             Command::Operation(op) => match op {
-                command::Operation::Add => codegen.emit_binary_op("D+M"),
-                command::Operation::Sub => codegen.emit_binary_op("M-D"),
-                command::Operation::Neg => codegen.emit_unary_op("-"),
-                command::Operation::Eq => codegen.emit_cmp_op("JEQ"),
-                command::Operation::Gt => codegen.emit_cmp_op("JGT"),
-                command::Operation::Lt => codegen.emit_cmp_op("JLT"),
-                command::Operation::And => codegen.emit_binary_op("D&M"),
-                command::Operation::Or => codegen.emit_binary_op("D|M"),
-                command::Operation::Not => codegen.emit_unary_op("!"),
+                command::Operation::Add => self.emit_binary_op("D+M"),
+                command::Operation::Sub => self.emit_binary_op("M-D"),
+                command::Operation::Neg => self.emit_unary_op("-"),
+                command::Operation::Eq => self.emit_cmp_op("JEQ"),
+                command::Operation::Gt => self.emit_cmp_op("JGT"),
+                command::Operation::Lt => self.emit_cmp_op("JLT"),
+                command::Operation::And => self.emit_binary_op("D&M"),
+                command::Operation::Or => self.emit_binary_op("D|M"),
+                command::Operation::Not => self.emit_unary_op("!"),
             },
             Command::Memory(mem) => match mem {
                 command::Memory::Push(seg, val) => match seg {
@@ -179,8 +162,8 @@ pub fn translate(text: &str) -> String {
                     command::Segment::Local => todo!(),
                     command::Segment::Static => todo!(),
                     command::Segment::Constant => {
-                        codegen.emit_load_constant(val);
-                        codegen.emit_stack_push();
+                        self.emit_load_constant(val);
+                        self.emit_stack_push();
                     }
                     command::Segment::This => todo!(),
                     command::Segment::That => todo!(),
@@ -193,6 +176,16 @@ pub fn translate(text: &str) -> String {
             Command::Function(_) => todo!(),
         }
     }
+}
 
-    codegen.assembly()
+pub fn translate(text: &str) -> String {
+    let commands = parse(text);
+    let mut translator = Translator {
+        assembly: String::new(),
+        label_counter: 0,
+    };
+    for command in commands {
+        translator.emit_command(command);
+    }
+    translator.assembly
 }
