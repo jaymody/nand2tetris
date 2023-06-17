@@ -129,7 +129,6 @@ fn reserved_symbol_lookup(s: &str) -> Option<u16> {
 }
 
 enum Command {
-    Label(String),
     A(String),
     C(String),
 }
@@ -156,53 +155,46 @@ impl ToString for Instruction {
 }
 
 pub fn parse(text: &str) -> Vec<Instruction> {
-    fn remove_comments(s: String) -> String {
-        s.split_once("//").map(|(s, _)| s.to_string()).unwrap_or(s)
-    }
-
-    fn remove_whitespace(mut s: String) -> String {
-        s.retain(|c| !c.is_whitespace());
-        s
-    }
-
-    fn parse_command(line: &str) -> Option<Command> {
-        let mut line = line.to_string();
-        line = remove_comments(line);
-        line = remove_whitespace(line);
-
-        if line.is_empty() {
-            return None;
-        }
-
-        let command = match line.split_at(1) {
-            ("(", s) => Command::Label(s.strip_suffix(')').expect("( was not closed").to_string()),
-            ("@", s) => Command::A(s.to_string()),
-            _ => Command::C(line),
-        };
-
-        Some(command)
-    }
-
+    // first pass over the text to parse the commands into a list of commands
+    // and a map of the labels
     let mut commands = Vec::new();
     let mut labels = HashMap::new();
-
     for line in text.lines() {
-        if let Some(command) = parse_command(line) {
-            match command {
-                Command::Label(label) => {
-                    if reserved_symbol_lookup(label.as_str()).is_some() {
-                        panic!("label ({label}) is a reserved symbol");
-                    }
-                    if labels.contains_key(label.as_str()) {
-                        panic!("label ({label}) has already been used");
-                    }
-                    labels.insert(label, commands.len() as u16);
+        let mut line = line.to_string();
+
+        // remove comments
+        line = line
+            .split_once("//")
+            .map(|(s, _)| s.to_string())
+            .unwrap_or(line);
+
+        // remove whitespace
+        line.retain(|c| !c.is_whitespace());
+
+        // skip if line is empty after removing comments and whitespace
+        if line.is_empty() {
+            continue;
+        }
+
+        // parse the line and either add it to labels or to commands
+        match line.split_at(1) {
+            ("(", s) => {
+                let label = s.strip_suffix(')').expect("( was not closed").to_string();
+                if reserved_symbol_lookup(label.as_str()).is_some() {
+                    panic!("label ({label}) is a reserved symbol");
                 }
-                _ => commands.push(command),
-            };
+                if labels.contains_key(label.as_str()) {
+                    panic!("label ({label}) has already been used");
+                }
+                labels.insert(label, commands.len() as u16);
+            }
+            ("@", s) => commands.push(Command::A(s.to_string())),
+            _ => commands.push(Command::C(line)),
         };
     }
 
+    // second pass that processes the commands into instructions (keeping track
+    // of any new symbols that have been added)
     let mut symbols = HashMap::new();
     commands
         .into_iter()
@@ -232,7 +224,6 @@ pub fn parse(text: &str) -> Vec<Instruction> {
                     Jump::from_str(jump_exp).unwrap(),
                 )
             }
-            _ => panic!("unreachable"),
         })
         .collect()
 }
