@@ -1,13 +1,4 @@
-use parser::parse;
-
-mod command;
-mod parser;
-
-fn translate(text: &str) -> Vec<String> {
-    let commands = parse(text);
-    let assembly_code = commands.into_iter().map(|c| format!("{:?}", c)).collect();
-    assembly_code
-}
+use vm::translate;
 
 fn main() {
     let infile = std::env::args().nth(1).expect("no filename given");
