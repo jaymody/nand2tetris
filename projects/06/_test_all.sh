@@ -6,7 +6,7 @@ function run_test {(
     echo "testing $1.asm"
     sh ../../tools/Assembler.sh $1.asm > /dev/null
     mv $1.hack $1-expected.hack
-    cargo run --quiet --manifest-path ../../crates/assembler/Cargo.toml $1.asm
+    cargo run --quiet --manifest-path ../../crates/assembler/Cargo.toml $1.asm > $1.hack
     mv $1.hack $1-actual.hack
     cmp $1-expected.hack $1-actual.hack
     echo ""
