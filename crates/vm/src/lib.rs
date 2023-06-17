@@ -9,37 +9,48 @@ struct CodeGenerator {
     label_counter: u16,
 }
 
+/// Assembly code generator.
+///
+/// For the purposes of documentation:
+///
+///     D                           (the data register)
+///     RAM[addr]                   (the value at address addr in RAM)
+///
+///     &head   = RAM[SP]           (stack head address)
+///     head    = RAM[&head]        (stack head value)
+///
+///     &local  = RAM[LCL]          (local base address)
+///     localN  = RAM[&local + N]   (local value at offset N)
+///
+///     &arg    = RAM[ARG]          (argument base address)
+///     argN    = RAM[&arg + N]     (argument value at offset N)
+///
 impl CodeGenerator {
     pub fn new() -> Self {
-        let mut assembler = Self {
+        Self {
             assembly: String::new(),
             label_counter: 0,
-        };
-        // initialize SP to point to 256
-        assembler.emit_load_constant(256);
-        assembler.emit(
-            "
-            @SP
-            M=D
-            ",
-        );
-        assembler
+        }
     }
 
-    fn new_label(&mut self, s: &str) -> String {
+    /// Creates a new unique label prepended with prefix.
+    fn new_label(&mut self, prefix: &str) -> String {
         self.label_counter += 1;
-        format!("{s}_{}", self.label_counter - 1)
+        format!("{prefix}_{}", self.label_counter - 1)
     }
 
+    /// Consume the struct and return the assembly code.
     pub fn assembly(self) -> String {
         self.assembly
     }
 
+    /// Write a string to the assembly code.
     pub fn emit(&mut self, s: &str) {
         self.assembly.push_str(s);
         self.assembly.push('\n');
     }
 
+    /// D = val
     pub fn emit_load_constant(&mut self, val: u16) {
         self.emit(&format!(
             "
@@ -50,16 +61,8 @@ impl CodeGenerator {
         ));
     }
 
-    // pub fn emit_load_memory(&mut self, loc: u16) {
-    //     self.emit(&format!(
-    //         "
-    //         //// load memory ////
-    //         @{loc}
-    //         D=A
-    //         ",
-    //     ));
-    // }
-
+    /// head = D
+    /// &head += 1
     pub fn emit_stack_push(&mut self) {
         self.emit(
             "
@@ -73,6 +76,8 @@ impl CodeGenerator {
         );
     }
 
+    /// &head -= 1
+    /// D = head
     pub fn emit_stack_pop(&mut self) {
         self.emit(
             "
@@ -84,6 +89,7 @@ impl CodeGenerator {
         );
     }
 
+    /// head = unary_op head
     pub fn emit_unary_op(&mut self, op: &str) {
         self.emit(&format!(
             "
@@ -95,6 +101,7 @@ impl CodeGenerator {
         ))
     }
 
+    /// head = head binary_op stack.pop()
     pub fn emit_binary_op(&mut self, op: &str) {
         self.emit_stack_pop();
         self.emit(&format!(
@@ -107,6 +114,10 @@ impl CodeGenerator {
         ))
     }
 
+    /// if head cmp_op stack.pop()
+    ///     head = -1 (aka true)
+    /// else
+    ///     head = 0  (aka false)
     pub fn emit_cmp_op(&mut self, op: &str) {
         let set_to_true_label = self.new_label("SET_TO_TRUE");
         let end_comparison_label = self.new_label("END_COMPARISON");
