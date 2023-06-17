@@ -4,6 +4,13 @@ mod parser;
 use command::Command;
 use parser::parse;
 
+const LCL: u16 = 1;
+const ARG: u16 = 2;
+const THIS: u16 = 3;
+const THAT: u16 = 4;
+const TEMP: u16 = 5;
+const STATIC: u16 = 16;
+
 struct Translator {
     assembly: String,
     label_counter: u16,
@@ -135,6 +142,71 @@ impl Translator {
         ))
     }
 
+    /// D = RAM[addr]
+    fn emit_load_from_addr(&mut self, addr: u16) {
+        self.emit(&format!(
+            "
+            @{addr}
+            D=M
+            ",
+        ))
+    }
+
+    /// RAM[addr] = D
+    fn emit_save_to_addr(&mut self, addr: u16) {
+        self.emit(&format!(
+            "
+            @{addr}
+            M=D
+            ",
+        ))
+    }
+
+    /// D = RAM[RAM[ptr] + offset]
+    ///
+    /// For example, if we ptr = ARG and offset = 2, then effectively we are doing:
+    /// D = arg2
+    fn emit_load_from_pointer_offset(&mut self, ptr: u16, offset: u16) {
+        self.emit(&format!(
+            "
+            @{offset}
+            D=A
+            @{ptr}
+            A=D+M
+            D=M
+            ",
+        ))
+    }
+
+    /// RAM[RAM[ptr] + offset] = D
+    ///
+    /// For example, if we ptr = ARG and offset = 2, then effectively we are doing:
+    /// arg2 = D
+    fn emit_save_to_pointer_offset(&mut self, ptr: u16, offset: u16) {
+        self.emit(&format!(
+            "
+            // R13 = D
+            @R13
+            M=D
+
+            // R14 = RAM[ptr] + offset
+            @{offset}
+            D=A
+            @{ptr}
+            D=D+M
+            @R14
+            M=D
+
+            // RAM[R14] = R13
+            @R13
+            D=M
+            @R14
+            A=M
+            M=D
+            ",
+        ))
+    }
+
     fn emit_command(&mut self, command: Command) {
         match command {
             Command::Operation(op) => match op {
@@ -150,19 +222,70 @@ impl Translator {
             },
             Command::Memory(mem) => match mem {
                 command::Memory::Push(seg, val) => match seg {
-                    command::Segment::Argument => todo!(),
-                    command::Segment::Local => todo!(),
-                    command::Segment::Static => todo!(),
+                    command::Segment::Argument => {
+                        self.emit_load_from_pointer_offset(ARG, val);
+                        self.emit_stack_push();
+                    }
+                    command::Segment::Local => {
+                        self.emit_load_from_pointer_offset(LCL, val);
+                        self.emit_stack_push();
+                    }
+                    command::Segment::Static => {
+                        self.emit_load_from_addr(STATIC + val);
+                        self.emit_stack_push();
+                    }
                     command::Segment::Constant => {
                         self.emit_load_constant(val);
                         self.emit_stack_push();
                     }
-                    command::Segment::This => todo!(),
-                    command::Segment::That => todo!(),
-                    command::Segment::Pointer => todo!(),
-                    command::Segment::Temp => todo!(),
+                    command::Segment::This => {
+                        self.emit_load_from_pointer_offset(THIS, val);
+                        self.emit_stack_push();
+                    }
+                    command::Segment::That => {
+                        self.emit_load_from_pointer_offset(THAT, val);
+                        self.emit_stack_push();
+                    }
+                    command::Segment::Pointer => {
+                        self.emit_load_from_addr(THIS + val);
+                        self.emit_stack_push();
+                    }
+                    command::Segment::Temp => {
+                        self.emit_load_from_addr(TEMP + val);
+                        self.emit_stack_push();
+                    }
                 },
-                command::Memory::Pop(_, _) => todo!(),
+                command::Memory::Pop(seg, val) => match seg {
+                    command::Segment::Argument => {
+                        self.emit_stack_pop();
+                        self.emit_save_to_pointer_offset(ARG, val);
+                    }
+                    command::Segment::Local => {
+                        self.emit_stack_pop();
+                        self.emit_save_to_pointer_offset(LCL, val);
+                    }
+                    command::Segment::Static => {
+                        self.emit_stack_pop();
+                        self.emit_save_to_addr(STATIC + val);
+                    }
+                    command::Segment::Constant => {}
+                    command::Segment::This => {
+                        self.emit_stack_pop();
+                        self.emit_save_to_pointer_offset(THIS, val);
+                    }
+                    command::Segment::That => {
+                        self.emit_stack_pop();
+                        self.emit_save_to_pointer_offset(THAT, val);
+                    }
+                    command::Segment::Pointer => {
+                        self.emit_stack_pop();
+                        self.emit_save_to_addr(THIS + val);
+                    }
+                    command::Segment::Temp => {
+                        self.emit_stack_pop();
+                        self.emit_save_to_addr(TEMP + val);
+                    }
+                },
             },
             Command::Branch(_) => todo!(),
             Command::Function(_) => todo!(),

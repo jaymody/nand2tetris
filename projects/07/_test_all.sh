@@ -15,6 +15,9 @@ function run_tests {(
 
     run_test "./StackArithmetic/SimpleAdd/SimpleAdd"
     run_test "./StackArithmetic/StackTest/StackTest"
+    run_test "./MemoryAccess/BasicTest/BasicTest"
+    run_test "./MemoryAccess/StaticTest/StaticTest"
+    run_test "./MemoryAccess/PointerTest/PointerTest"
 )}
 
 run_tests
