@@ -203,6 +203,36 @@ impl Translator {
         ))
     }
 
+    // Emits the label.
+    fn emit_label(&mut self, label: &str) {
+        self.emit(&format!(
+            "
+            ({label})
+            ",
+        ));
+    }
+
+    // Jumps to the label.
+    fn emit_goto_label(&mut self, label: &str) {
+        self.emit(&format!(
+            "
+            @{label}
+            0;JMP
+            ",
+        ));
+    }
+
+    // Jumps to the label if stack.pop() != 0
+    fn emit_if_goto_label(&mut self, label: &str) {
+        self.emit_stack_pop();
+        self.emit(&format!(
+            "
+            @{label}
+            D;JNE
+            ",
+        ));
+    }
+
     fn emit_opcode(&mut self, opcode: OpCode) {
         match opcode {
             OpCode::Add => self.emit_binary_op("D+M"),
@@ -242,30 +272,15 @@ impl Translator {
             }
             OpCode::Label(name) => {
                 let label = self.get_label(&name);
-                self.emit(&format!(
-                    "
-                    ({label})
-                    ",
-                ));
+                self.emit_label(&label);
             }
             OpCode::Goto(name) => {
                 let label = self.get_label(&name);
-                self.emit(&format!(
-                    "
-                    @{label}
-                    0;JMP
-                    ",
-                ));
+                self.emit_goto_label(&label);
             }
             OpCode::IfGoto(name) => {
                 let label = self.get_label(&name);
-                self.emit_stack_pop();
-                self.emit(&format!(
-                    "
-                    @{label}
-                    D;JNE
-                    ",
-                ));
+                self.emit_if_goto_label(&label);
             }
             OpCode::Function(_, _) => todo!(),
             OpCode::Call(_, _) => todo!(),
