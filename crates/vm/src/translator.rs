@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::opcode::{OpCode, Segment};
 
 const LCL: u16 = 1;
@@ -27,16 +25,14 @@ const STATIC: u16 = 16;
 ///
 pub struct Translator {
     assembly: String,
-    label_counter: u16,
-    labels: HashMap<String, String>,
-    function_name: String,
+    cmp_counter: u16,
+    current_function_name: String,
 }
 
 impl Translator {
-    /// Creates a new unique label prepended with prefix.
-    fn new_label(&mut self, prefix: &str) -> String {
-        self.label_counter += 1;
-        format!("{prefix}_{}", self.label_counter - 1)
+    /// Get full label from name.
+    fn get_label(&mut self, name: &str) -> String {
+        format!("{}_{}", self.current_function_name, name)
     }
 
     /// Write a string to the assembly code.
@@ -109,8 +105,8 @@ impl Translator {
     /// else
     ///     head = 0  (aka false)
     fn emit_cmp_op(&mut self, op: &str) {
-        let set_to_true_label = self.new_label("SET_TO_TRUE");
-        let end_comparison_label = self.new_label("END_COMPARISON");
+        let cmp_counter = self.cmp_counter;
+        self.cmp_counter += 1;
 
         self.emit_stack_pop();
         self.emit(&format!(
@@ -121,23 +117,23 @@ impl Translator {
             D=M-D
 
             // check condition
-            @{set_to_true_label}
+            @SET_TO_TRUE_{cmp_counter}
             D;{op}
 
             // condition did not trigger, so set head=false=0
             @SP
             A=M-1
             M=0
-            @{end_comparison_label}
+            @END_COMPARISON_{cmp_counter}
             0;JMP
 
             // condition triggered, so x=true=-1
-            ({set_to_true_label})
+            (SET_TO_TRUE_{cmp_counter})
             @SP
             A=M-1
             M=-1
 
-            ({end_comparison_label})
+            (END_COMPARISON_{cmp_counter})
             ",
         ))
     }
@@ -245,16 +241,15 @@ impl Translator {
                 }
             }
             OpCode::Label(name) => {
-                let label = self.new_label(&format!("{}_{}", self.function_name, name));
+                let label = self.get_label(&name);
                 self.emit(&format!(
                     "
                     ({label})
                     ",
                 ));
-                self.labels.insert(name, label);
             }
             OpCode::Goto(name) => {
-                let label = self.labels.get(&name).unwrap();
+                let label = self.get_label(&name);
                 self.emit(&format!(
                     "
                     @{label}
@@ -263,9 +258,8 @@ impl Translator {
                 ));
             }
             OpCode::IfGoto(name) => {
+                let label = self.get_label(&name);
                 self.emit_stack_pop();
-
-                let label = self.labels.get(&name).unwrap();
                 self.emit(&format!(
                     "
                     @{label}
@@ -282,9 +276,8 @@ impl Translator {
     pub fn translate(opcodes: Vec<OpCode>) -> String {
         let mut translator = Translator {
             assembly: String::new(),
-            label_counter: 0,
-            labels: HashMap::new(),
-            function_name: "main".to_string(),
+            cmp_counter: 0,
+            current_function_name: "main".to_string(),
         };
 
         for opcode in opcodes {

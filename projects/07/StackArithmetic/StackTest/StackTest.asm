@@ -39,7 +39,7 @@
             @SP
             A=M-1
             M=0
-            @END_COMPARISON_1
+            @END_COMPARISON_0
             0;JMP
 
             // condition triggered, so x=true=-1
@@ -48,7 +48,7 @@
             A=M-1
             M=-1
 
-            (END_COMPARISON_1)
+            (END_COMPARISON_0)
             
 
             @17
@@ -63,6 +63,58 @@
             
 
             @16
+            D=A
+            
+
+            @SP
+            A=M
+            M=D
+            @SP
+            M=M+1
+            
+
+            @SP
+            AM=M-1
+            D=M
+            
+
+            // D = head - stack.pop()
+            @SP
+            A=M-1
+            D=M-D
+
+            // check condition
+            @SET_TO_TRUE_1
+            D;JEQ
+
+            // condition did not trigger, so set head=false=0
+            @SP
+            A=M-1
+            M=0
+            @END_COMPARISON_1
+            0;JMP
+
+            // condition triggered, so x=true=-1
+            (SET_TO_TRUE_1)
+            @SP
+            A=M-1
+            M=-1
+
+            (END_COMPARISON_1)
+            
+
+            @16
+            D=A
+            
+
+            @SP
+            A=M
+            M=D
+            @SP
+            M=M+1
+            
+
+            @17
             D=A
             
 
@@ -91,7 +143,7 @@
             @SP
             A=M-1
             M=0
-            @END_COMPARISON_3
+            @END_COMPARISON_2
             0;JMP
 
             // condition triggered, so x=true=-1
@@ -100,10 +152,10 @@
             A=M-1
             M=-1
 
-            (END_COMPARISON_3)
+            (END_COMPARISON_2)
             
 
-            @16
+            @892
             D=A
             
 
@@ -114,7 +166,59 @@
             M=M+1
             
 
-            @17
+            @891
+            D=A
+            
+
+            @SP
+            A=M
+            M=D
+            @SP
+            M=M+1
+            
+
+            @SP
+            AM=M-1
+            D=M
+            
+
+            // D = head - stack.pop()
+            @SP
+            A=M-1
+            D=M-D
+
+            // check condition
+            @SET_TO_TRUE_3
+            D;JLT
+
+            // condition did not trigger, so set head=false=0
+            @SP
+            A=M-1
+            M=0
+            @END_COMPARISON_3
+            0;JMP
+
+            // condition triggered, so x=true=-1
+            (SET_TO_TRUE_3)
+            @SP
+            A=M-1
+            M=-1
+
+            (END_COMPARISON_3)
+            
+
+            @891
+            D=A
+            
+
+            @SP
+            A=M
+            M=D
+            @SP
+            M=M+1
+            
+
+            @892
             D=A
             
 
@@ -137,13 +241,13 @@
 
             // check condition
             @SET_TO_TRUE_4
-            D;JEQ
+            D;JLT
 
             // condition did not trigger, so set head=false=0
             @SP
             A=M-1
             M=0
-            @END_COMPARISON_5
+            @END_COMPARISON_4
             0;JMP
 
             // condition triggered, so x=true=-1
@@ -152,10 +256,10 @@
             A=M-1
             M=-1
 
-            (END_COMPARISON_5)
+            (END_COMPARISON_4)
             
 
-            @892
+            @891
             D=A
             
 
@@ -167,6 +271,58 @@
             
 
             @891
+            D=A
+            
+
+            @SP
+            A=M
+            M=D
+            @SP
+            M=M+1
+            
+
+            @SP
+            AM=M-1
+            D=M
+            
+
+            // D = head - stack.pop()
+            @SP
+            A=M-1
+            D=M-D
+
+            // check condition
+            @SET_TO_TRUE_5
+            D;JLT
+
+            // condition did not trigger, so set head=false=0
+            @SP
+            A=M-1
+            M=0
+            @END_COMPARISON_5
+            0;JMP
+
+            // condition triggered, so x=true=-1
+            (SET_TO_TRUE_5)
+            @SP
+            A=M-1
+            M=-1
+
+            (END_COMPARISON_5)
+            
+
+            @32767
+            D=A
+            
+
+            @SP
+            A=M
+            M=D
+            @SP
+            M=M+1
+            
+
+            @32766
             D=A
             
 
@@ -189,13 +345,13 @@
 
             // check condition
             @SET_TO_TRUE_6
-            D;JLT
+            D;JGT
 
             // condition did not trigger, so set head=false=0
             @SP
             A=M-1
             M=0
-            @END_COMPARISON_7
+            @END_COMPARISON_6
             0;JMP
 
             // condition triggered, so x=true=-1
@@ -204,10 +360,10 @@
             A=M-1
             M=-1
 
-            (END_COMPARISON_7)
+            (END_COMPARISON_6)
             
 
-            @891
+            @32766
             D=A
             
 
@@ -218,7 +374,59 @@
             M=M+1
             
 
-            @892
+            @32767
+            D=A
+            
+
+            @SP
+            A=M
+            M=D
+            @SP
+            M=M+1
+            
+
+            @SP
+            AM=M-1
+            D=M
+            
+
+            // D = head - stack.pop()
+            @SP
+            A=M-1
+            D=M-D
+
+            // check condition
+            @SET_TO_TRUE_7
+            D;JGT
+
+            // condition did not trigger, so set head=false=0
+            @SP
+            A=M-1
+            M=0
+            @END_COMPARISON_7
+            0;JMP
+
+            // condition triggered, so x=true=-1
+            (SET_TO_TRUE_7)
+            @SP
+            A=M-1
+            M=-1
+
+            (END_COMPARISON_7)
+            
+
+            @32766
+            D=A
+            
+
+            @SP
+            A=M
+            M=D
+            @SP
+            M=M+1
+            
+
+            @32766
             D=A
             
 
@@ -241,13 +449,13 @@
 
             // check condition
             @SET_TO_TRUE_8
-            D;JLT
+            D;JGT
 
             // condition did not trigger, so set head=false=0
             @SP
             A=M-1
             M=0
-            @END_COMPARISON_9
+            @END_COMPARISON_8
             0;JMP
 
             // condition triggered, so x=true=-1
@@ -256,215 +464,7 @@
             A=M-1
             M=-1
 
-            (END_COMPARISON_9)
-            
-
-            @891
-            D=A
-            
-
-            @SP
-            A=M
-            M=D
-            @SP
-            M=M+1
-            
-
-            @891
-            D=A
-            
-
-            @SP
-            A=M
-            M=D
-            @SP
-            M=M+1
-            
-
-            @SP
-            AM=M-1
-            D=M
-            
-
-            // D = head - stack.pop()
-            @SP
-            A=M-1
-            D=M-D
-
-            // check condition
-            @SET_TO_TRUE_10
-            D;JLT
-
-            // condition did not trigger, so set head=false=0
-            @SP
-            A=M-1
-            M=0
-            @END_COMPARISON_11
-            0;JMP
-
-            // condition triggered, so x=true=-1
-            (SET_TO_TRUE_10)
-            @SP
-            A=M-1
-            M=-1
-
-            (END_COMPARISON_11)
-            
-
-            @32767
-            D=A
-            
-
-            @SP
-            A=M
-            M=D
-            @SP
-            M=M+1
-            
-
-            @32766
-            D=A
-            
-
-            @SP
-            A=M
-            M=D
-            @SP
-            M=M+1
-            
-
-            @SP
-            AM=M-1
-            D=M
-            
-
-            // D = head - stack.pop()
-            @SP
-            A=M-1
-            D=M-D
-
-            // check condition
-            @SET_TO_TRUE_12
-            D;JGT
-
-            // condition did not trigger, so set head=false=0
-            @SP
-            A=M-1
-            M=0
-            @END_COMPARISON_13
-            0;JMP
-
-            // condition triggered, so x=true=-1
-            (SET_TO_TRUE_12)
-            @SP
-            A=M-1
-            M=-1
-
-            (END_COMPARISON_13)
-            
-
-            @32766
-            D=A
-            
-
-            @SP
-            A=M
-            M=D
-            @SP
-            M=M+1
-            
-
-            @32767
-            D=A
-            
-
-            @SP
-            A=M
-            M=D
-            @SP
-            M=M+1
-            
-
-            @SP
-            AM=M-1
-            D=M
-            
-
-            // D = head - stack.pop()
-            @SP
-            A=M-1
-            D=M-D
-
-            // check condition
-            @SET_TO_TRUE_14
-            D;JGT
-
-            // condition did not trigger, so set head=false=0
-            @SP
-            A=M-1
-            M=0
-            @END_COMPARISON_15
-            0;JMP
-
-            // condition triggered, so x=true=-1
-            (SET_TO_TRUE_14)
-            @SP
-            A=M-1
-            M=-1
-
-            (END_COMPARISON_15)
-            
-
-            @32766
-            D=A
-            
-
-            @SP
-            A=M
-            M=D
-            @SP
-            M=M+1
-            
-
-            @32766
-            D=A
-            
-
-            @SP
-            A=M
-            M=D
-            @SP
-            M=M+1
-            
-
-            @SP
-            AM=M-1
-            D=M
-            
-
-            // D = head - stack.pop()
-            @SP
-            A=M-1
-            D=M-D
-
-            // check condition
-            @SET_TO_TRUE_16
-            D;JGT
-
-            // condition did not trigger, so set head=false=0
-            @SP
-            A=M-1
-            M=0
-            @END_COMPARISON_17
-            0;JMP
-
-            // condition triggered, so x=true=-1
-            (SET_TO_TRUE_16)
-            @SP
-            A=M-1
-            M=-1
-
-            (END_COMPARISON_17)
+            (END_COMPARISON_8)
             
 
             @57

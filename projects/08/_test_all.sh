@@ -14,6 +14,7 @@ function run_tests {(
     set -e
 
     run_test "./ProgramFlow/BasicLoop/BasicLoop"
+    run_test "./ProgramFlow/FibonacciSeries/FibonacciSeries"
 )}
 
 run_tests
