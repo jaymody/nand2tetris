@@ -1,38 +1,55 @@
-use crate::command::{Branch, Command, Function, Memory, Operation, Segment};
+use crate::opcode::{OpCode, Segment};
+
+pub fn parse(text: &str) -> Vec<OpCode> {
+    let mut opcodes = Vec::new();
+
+    for line in text.lines() {
+        let opcode_str = remove_comments(line).trim();
+
+        if opcode_str.is_empty() {
+            continue;
+        }
+
+        let opcode = parse_opcode(opcode_str);
+        opcodes.push(opcode);
+    }
+
+    opcodes
+}
 
 fn remove_comments(s: &str) -> &str {
     s.split_once("//").map(|(s, _)| s).unwrap_or(s)
 }
 
-fn parse_command(command_str: &str) -> Command {
-    let args: Vec<&str> = command_str.split_whitespace().collect();
+fn parse_opcode(opcode_str: &str) -> OpCode {
+    let args: Vec<&str> = opcode_str.split_whitespace().collect();
     match args[..] {
-        [] => panic!("command_str must be non-empty (whitespace is considered empty)"),
-        [cmd] => match cmd {
-            "return" => Command::Function(Function::Return),
-            "add" => Command::Operation(Operation::Add),
-            "sub" => Command::Operation(Operation::Sub),
-            "neg" => Command::Operation(Operation::Neg),
-            "eq" => Command::Operation(Operation::Eq),
-            "gt" => Command::Operation(Operation::Gt),
-            "lt" => Command::Operation(Operation::Lt),
-            "and" => Command::Operation(Operation::And),
-            "or" => Command::Operation(Operation::Or),
-            "not" => Command::Operation(Operation::Not),
-            _ => panic!("unrecognized command {cmd}"),
+        [] => panic!("opcode_str must be non-empty (whitespace is considered empty)"),
+        [op] => match op {
+            "return" => OpCode::Return,
+            "add" => OpCode::Add,
+            "sub" => OpCode::Sub,
+            "neg" => OpCode::Neg,
+            "eq" => OpCode::Eq,
+            "gt" => OpCode::Gt,
+            "lt" => OpCode::Lt,
+            "and" => OpCode::And,
+            "or" => OpCode::Or,
+            "not" => OpCode::Not,
+            _ => panic!("unrecognized opcode {op}"),
         },
-        [cmd, arg] => match cmd {
-            "label" => Command::Branch(Branch::Label(arg.to_string())),
-            "goto" => Command::Branch(Branch::Goto(arg.to_string())),
-            "if-goto" => Command::Branch(Branch::IfGoto(arg.to_string())),
-            _ => panic!("unrecognized command {cmd}"),
+        [op, arg] => match op {
+            "label" => OpCode::Label(arg.to_string()),
+            "goto" => OpCode::Goto(arg.to_string()),
+            "if-goto" => OpCode::IfGoto(arg.to_string()),
+            _ => panic!("unrecognized opcode {op}"),
         },
-        [cmd, arg1, arg2] => {
+        [op, arg1, arg2] => {
             let val: u16 = arg2
                 .parse()
                 .expect("{arg2} is not a valid 16-bit unsigned integer");
 
-            match cmd {
+            match op {
                 "push" | "pop" => {
                     let segment = match arg1 {
                         "argument" => Segment::Argument,
@@ -46,39 +63,22 @@ fn parse_command(command_str: &str) -> Command {
                         _ => panic!("{arg1} is not a valid segment identifier"),
                     };
 
-                    match cmd {
-                        "push" => Command::Memory(Memory::Push(segment, val)),
-                        "pop" => Command::Memory(Memory::Pop(segment, val)),
+                    match op {
+                        "push" => OpCode::Push(segment, val),
+                        "pop" => OpCode::Pop(segment, val),
                         _ => panic!("unreachable"),
                     }
                 }
-                "function" => Command::Function(Function::Function(arg1.to_string(), val)),
-                "call" => Command::Function(Function::Call(arg1.to_string(), val)),
-                _ => panic!("unrecognized command {cmd}"),
+                "function" => OpCode::Function(arg1.to_string(), val),
+                "call" => OpCode::Call(arg1.to_string(), val),
+                _ => panic!("unrecognized opcode {op}"),
             }
         }
         _ => {
             panic!(
-                "command must have at most 2 arguments instead {} arguments were found",
+                "opcode must have at most 2 arguments instead {} arguments were found",
                 args.len() - 1
             )
         }
     }
-}
-
-pub fn parse(text: &str) -> Vec<Command> {
-    let mut commands = Vec::new();
-
-    for line in text.lines() {
-        let command_str = remove_comments(line).trim();
-
-        if command_str.is_empty() {
-            continue;
-        }
-
-        let command = parse_command(command_str);
-        commands.push(command);
-    }
-
-    commands
 }
