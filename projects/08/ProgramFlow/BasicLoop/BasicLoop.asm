@@ -35,8 +35,8 @@
             M=D
             
 
-                    (main_LOOP_START)
-                    
+            (main_LOOP_START)
+            
 
             @0
             D=A
@@ -180,9 +180,9 @@
             D=M
             
 
-                    @main_LOOP_START
-                    D;JNE
-                    
+            @main_LOOP_START
+            D;JNE
+            
 
             @0
             D=A

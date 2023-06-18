@@ -154,8 +154,8 @@
             M=D
             
 
-                    (main_MAIN_LOOP_START)
-                    
+            (main_MAIN_LOOP_START)
+            
 
             @0
             D=A
@@ -176,16 +176,16 @@
             D=M
             
 
-                    @main_COMPUTE_ELEMENT
-                    D;JNE
-                    
+            @main_COMPUTE_ELEMENT
+            D;JNE
+            
 
-                    @main_END_PROGRAM
-                    0;JMP
-                    
+            @main_END_PROGRAM
+            0;JMP
+            
 
-                    (main_COMPUTE_ELEMENT)
-                    
+            (main_COMPUTE_ELEMENT)
+            
 
             @0
             D=A
@@ -351,10 +351,10 @@
             M=D
             
 
-                    @main_MAIN_LOOP_START
-                    0;JMP
-                    
+            @main_MAIN_LOOP_START
+            0;JMP
+            
 
-                    (main_END_PROGRAM)
-                    
+            (main_END_PROGRAM)
+            
 

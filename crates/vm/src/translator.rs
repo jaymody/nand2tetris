@@ -24,8 +24,14 @@ const STATIC: u16 = 16;
 ///     argN    = RAM[&arg + N]     (argument value at offset N)
 ///
 pub struct Translator {
+    // Running assembly code.
     assembly: String,
-    cmp_counter: u16,
+
+    // Counter for labels used in the emit_cmp_op function that ensures the
+    // labels are unique.
+    unique_label_id_counter: u16,
+
+    // Name of the current executing function.
     current_function_name: String,
 }
 
@@ -105,8 +111,8 @@ impl Translator {
     /// else
     ///     head = 0  (aka false)
     fn emit_cmp_op(&mut self, op: &str) {
-        let cmp_counter = self.cmp_counter;
-        self.cmp_counter += 1;
+        let unique_id = self.unique_label_id_counter;
+        self.unique_label_id_counter += 1;
 
         self.emit_stack_pop();
         self.emit(&format!(
@@ -117,23 +123,23 @@ impl Translator {
             D=M-D
 
             // check condition
-            @SET_TO_TRUE_{cmp_counter}
+            @SET_TO_TRUE_{unique_id}
             D;{op}
 
             // condition did not trigger, so set head=false=0
             @SP
             A=M-1
             M=0
-            @END_COMPARISON_{cmp_counter}
+            @END_COMPARISON_{unique_id}
             0;JMP
 
             // condition triggered, so x=true=-1
-            (SET_TO_TRUE_{cmp_counter})
+            (SET_TO_TRUE_{unique_id})
             @SP
             A=M-1
             M=-1
 
-            (END_COMPARISON_{cmp_counter})
+            (END_COMPARISON_{unique_id})
             ",
         ))
     }
@@ -291,7 +297,7 @@ impl Translator {
     pub fn translate(opcodes: Vec<OpCode>) -> String {
         let mut translator = Translator {
             assembly: String::new(),
-            cmp_counter: 0,
+            unique_label_id_counter: 0,
             current_function_name: "main".to_string(),
         };
 
