@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::opcode::{OpCode, Segment};
 
 const LCL: u16 = 1;
@@ -26,6 +28,8 @@ const STATIC: u16 = 16;
 pub struct Translator {
     assembly: String,
     label_counter: u16,
+    labels: HashMap<String, String>,
+    function_name: String,
 }
 
 impl Translator {
@@ -240,9 +244,35 @@ impl Translator {
                     Segment::Temp => self.emit_save_to_addr(TEMP + val),
                 }
             }
-            OpCode::Label(_) => todo!(),
-            OpCode::Goto(_) => todo!(),
-            OpCode::IfGoto(_) => todo!(),
+            OpCode::Label(name) => {
+                let label = self.new_label(&format!("{}_{}", self.function_name, name));
+                self.emit(&format!(
+                    "
+                    ({label})
+                    ",
+                ));
+                self.labels.insert(name, label);
+            }
+            OpCode::Goto(name) => {
+                let label = self.labels.get(&name).unwrap();
+                self.emit(&format!(
+                    "
+                    @{label}
+                    0;JMP
+                    ",
+                ));
+            }
+            OpCode::IfGoto(name) => {
+                self.emit_stack_pop();
+
+                let label = self.labels.get(&name).unwrap();
+                self.emit(&format!(
+                    "
+                    @{label}
+                    D;JNE
+                    ",
+                ));
+            }
             OpCode::Function(_, _) => todo!(),
             OpCode::Call(_, _) => todo!(),
             OpCode::Return => todo!(),
@@ -253,6 +283,8 @@ impl Translator {
         let mut translator = Translator {
             assembly: String::new(),
             label_counter: 0,
+            labels: HashMap::new(),
+            function_name: "main".to_string(),
         };
 
         for opcode in opcodes {
