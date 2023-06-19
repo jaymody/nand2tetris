@@ -14,14 +14,14 @@ const STATIC: u16 = 16;
 ///     D                           (the data register)
 ///     RAM[addr]                   (the value at address addr in RAM)
 ///
-///     &head   = RAM[SP]           (stack head address)
-///     head    = RAM[&head]        (stack head value)
+///     &head       = RAM[SP]           (stack head address)
+///     head        = RAM[&head]        (stack head value)
 ///
-///     &local  = RAM[LCL]          (local base address)
-///     localN  = RAM[&local + N]   (local value at offset N)
+///     &local      = RAM[LCL]          (local base address)
+///     local[N]    = RAM[&local + N]   (local value at offset N)
 ///
-///     &arg    = RAM[ARG]          (argument base address)
-///     argN    = RAM[&arg + N]     (argument value at offset N)
+///     &arg        = RAM[ARG]          (argument base address)
+///     arg[N]      = RAM[&arg + N]     (argument value at offset N)
 ///
 pub struct Translator {
     // Running assembly code.
@@ -288,9 +288,169 @@ impl Translator {
                 let label = self.get_label(&name);
                 self.emit_if_goto_label(&label);
             }
-            OpCode::Function(_, _) => todo!(),
+            OpCode::Function(name, nlocals) => {
+                // The basic logic is as follows:
+                //
+                //  1) Emit a label using name as the value, so we can call our
+                //     function with goto name.
+                //
+                //  2) Initialize the local block to 0s:
+                //
+                //      for i in 0..nlocals
+                //          local[i] = 0
+                //
+                //  3) Set the stack pointer to point to the address right after
+                //     the end of the local block:
+                //
+                //      &head = &local + nlocals
+
+                // 1) Emit the label.
+                self.emit_label(&name);
+
+                // 2) Initialize local vars to 0.
+                //
+                // NOTE: We do this instead of reusing the logic for
+                // 'push constant 0' because that would result in
+                // (2 + 5) * nlocals instructions (2 for setting D=0
+                // and 5 for pushing to the stack) while this approach only
+                // takes 2 * nlocals + 4 instructions.
+                self.emit(
+                    "
+                    @LCL
+                    A=M
+                    ",
+                );
+                for _ in 0..nlocals {
+                    self.emit(
+                        "
+                        M=0
+                        AD=A+1
+                        ",
+                    )
+                }
+
+                // 3) Set stack pointer to point to the end of the nlocals block.
+                self.emit(
+                    "
+                    @SP
+                    M=D
+                    ",
+                );
+            }
             OpCode::Call(_, _) => todo!(),
-            OpCode::Return => todo!(),
+            OpCode::Return => {
+                // The basic logic is as follows:
+                //
+                // 1) Store the address to the start of the stack frame and the
+                //    return address to temp variables.
+                //
+                //      FRAME  = &local      (start of the stack frame)
+                //      RET    = FRAME - 5   (the return address)
+                //
+                // 2) Store the computed value (at the current stack head) to
+                //    the parent functions stack head location (which is &arg)
+                //    and reset parent functions stack head (+ 1, because we
+                //    just added to it) as our stack head.
+                //
+                //      arg[0] = pop()      (set parent function's stack head t)
+                //      &head  = &arg + 1   (restore stack head of parent function)
+                //
+                // 3) Restore &local, &arg, &this, &that of the parent function.
+                //
+                //          &that  = FRAME - 1
+                //          &this  = FRAME - 2
+                //          &arg   = FRAME - 3
+                //          &local = FRAME - 4
+                //
+                // 4) Finally, we goto the return address to continue execution
+                //    from our parent function.
+                //
+                //          goto RET
+                //
+                // Two quick notes:
+                //
+                //  a) Why do we store &local in a temp register FRAME? Can't
+                //     we just use it directly, since &local is the last thing
+                //     we restore?
+                //
+                //          Yeah, I guess you could, but this is more readable
+                //          and clear.
+                //
+                //  b) Why we store the return address in a temp register RET?
+                //     Can't we just do 'goto FRAME - 5' at the very end?
+                //
+                //          No. The problem is if nargs is 0, then args[0]
+                //          and FRAME - 5 point to the same location. So,
+                //          in step 2, when we run arg[0] = pop(), we'd be
+                //          overwriting the return address.
+                //
+
+                const FRAME: u16 = 13;
+                const RET: u16 = 14;
+
+                self.emit(&format!(
+                    "
+                    // 1) Store stack frame base address and return address in temp registers.
+                    @LCL
+                    D=M
+
+                    @{FRAME}
+                    M=D
+
+                    @5
+                    A=D-A
+                    D=M
+
+                    @{RET}
+                    M=D
+
+                    // 2) Set arg[0] = pop() and set the stack head to &arg + 1
+                    @SP
+                    A=M-1
+                    D=M
+
+                    @ARG
+                    A=M
+                    M=D
+
+                    @ARG
+                    D=M+1
+
+                    @SP
+                    M=D
+
+                    // 3) Restore &local, &arg, &this, &that of the parent function.
+                    @{FRAME}
+                    AM=M-1
+                    D=M
+                    @THAT
+                    M=D
+
+                    @{FRAME}
+                    AM=M-1
+                    D=M
+                    @THIS
+                    M=D
+
+                    @{FRAME}
+                    AM=M-1
+                    D=M
+                    @ARG
+                    M=D
+
+                    @{FRAME}
+                    AM=M-1
+                    D=M
+                    @LCL
+                    M=D
+
+                    // 4) Continue execution of parent function where we left off.
+                    @{RET}
+                    A=M
+                    0;JMP
+                    ",
+                ));
+            }
         }
     }
 

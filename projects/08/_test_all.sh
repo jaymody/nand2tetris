@@ -15,6 +15,7 @@ function run_tests {(
 
     run_test "./ProgramFlow/BasicLoop/BasicLoop"
     run_test "./ProgramFlow/FibonacciSeries/FibonacciSeries"
+    run_test "./FunctionCalls/SimpleFunction/SimpleFunction"
 )}
 
 run_tests
