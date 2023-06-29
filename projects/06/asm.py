@@ -6,34 +6,26 @@ COMP = {"0": "0101010", "1": "0111111", "-1": "0111010", "D": "0001100", "A": "0
 RESERVED_SYMBOLS = {"SP": 0, "LCL": 1, "ARG": 2, "THIS": 3, "THAT": 4, "R0": 0, "R1": 1, "R2": 2, "R3": 3, "R4": 4, "R5": 5, "R6": 6, "R7": 7, "R8": 8, "R9": 9, "R10": 10, "R11": 11, "R12": 12, "R13": 13, "R14": 14, "R15": 15, "SCREEN": 16384, "KBD": 24576}
 
 labels = {}
+symbols = {}
 instructions = []
 for line in open(sys.argv[1]).readlines():
-    line = line.split("//", maxsplit=1)[0]  # remove comments
-    line = "".join(line.split())  # remove whitespace
-    if line:  # only process if the line is not empty
+    if line := "".join(line.split("//", 1)[0].split()):
         if line.startswith("("):
             labels[line[1:-1]] = len(instructions)
-        elif line.startswith("@"):  # for A instruction, we populate as a list
-            instructions.append([line[1:]])  # list is used to indicate an A instruction
-        else:  # for C instructions, we process it right away into the hack instruction
-            dest, rest = line.split("=", maxsplit=1) if "=" in line else ("", line)
-            comp, jump = rest.split(";", maxsplit=1) if ";" in line else (rest, "")
-            instructions.append(f"111{COMP[comp]}{DEST[dest]}{JUMP[jump]}")
+        else:
+            instructions.append(line)
 
-symbols = {}
-for i, instruction in enumerate(instructions):
-    if isinstance(instruction, list):
-        s = instruction[0]
+for s in instructions:
+    if s.startswith("@"):
+        s = s[1:]
         try:
             val = int(s)
         except ValueError:
-            val = RESERVED_SYMBOLS.get(s)
-            if val is None:
-                val = labels.get(s)
-            if val is None:
-                val = symbols.get(s)
+            (val := RESERVED_SYMBOLS.get(s)) is not None or (val := labels.get(s)) is not None or (val := symbols.get(s)) is not None
             if val is None:
                 val = symbols[s] = len(symbols) + 16
         print(f"0{val:015b}")
     else:
-        print(instruction)
+        dest, rest = s.split("=", 1) if "=" in s else ("", s)
+        comp, jump = rest.split(";", 1) if ";" in s else (rest, "")
+        print(f"111{COMP[comp]}{DEST[dest]}{JUMP[jump]}")
