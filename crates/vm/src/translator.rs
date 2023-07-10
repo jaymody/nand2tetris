@@ -36,6 +36,37 @@ pub struct Translator {
 }
 
 impl Translator {
+    pub fn init(sys_init: bool) -> Translator {
+        let mut translator = Translator {
+            assembly: String::new(),
+            unique_label_id_counter: 0,
+            current_function_name: "Sys.init".to_string(),
+        };
+
+        translator.emit(
+            "
+            @256
+            D=A
+            @SP
+            M=D
+            ",
+        );
+        if sys_init {
+            translator.emit(
+                "
+                @Sys.init
+                0;JMP
+                ",
+            )
+        }
+
+        translator
+    }
+
+    pub fn assembly(self) -> String {
+        self.assembly
+    }
+
     /// Get full label from name.
     fn get_label(&mut self, name: &str) -> String {
         format!("{}_{}", self.current_function_name, name)
@@ -239,7 +270,7 @@ impl Translator {
         ));
     }
 
-    fn emit_opcode(&mut self, opcode: OpCode) {
+    pub fn emit_opcode(&mut self, opcode: OpCode) {
         match opcode {
             OpCode::Add => self.emit_binary_op("D+M"),
             OpCode::Sub => self.emit_binary_op("M-D"),
@@ -452,19 +483,5 @@ impl Translator {
                 ));
             }
         }
-    }
-
-    pub fn translate(opcodes: Vec<OpCode>) -> String {
-        let mut translator = Translator {
-            assembly: String::new(),
-            unique_label_id_counter: 0,
-            current_function_name: "main".to_string(),
-        };
-
-        for opcode in opcodes {
-            translator.emit_opcode(opcode);
-        }
-
-        translator.assembly
     }
 }
