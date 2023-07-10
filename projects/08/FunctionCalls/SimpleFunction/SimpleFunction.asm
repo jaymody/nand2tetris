@@ -1,4 +1,10 @@
 
+            @256
+            D=A
+            @SP
+            M=D
+            
+
             (SimpleFunction.test)
             
 

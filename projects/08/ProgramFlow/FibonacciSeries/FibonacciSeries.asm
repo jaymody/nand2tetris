@@ -1,4 +1,10 @@
 
+            @256
+            D=A
+            @SP
+            M=D
+            
+
             @1
             D=A
             @2
@@ -154,7 +160,7 @@
             M=D
             
 
-            (main_MAIN_LOOP_START)
+            (Sys.init_MAIN_LOOP_START)
             
 
             @0
@@ -176,15 +182,15 @@
             D=M
             
 
-            @main_COMPUTE_ELEMENT
+            @Sys.init_COMPUTE_ELEMENT
             D;JNE
             
 
-            @main_END_PROGRAM
+            @Sys.init_END_PROGRAM
             0;JMP
             
 
-            (main_COMPUTE_ELEMENT)
+            (Sys.init_COMPUTE_ELEMENT)
             
 
             @0
@@ -351,10 +357,10 @@
             M=D
             
 
-            @main_MAIN_LOOP_START
+            @Sys.init_MAIN_LOOP_START
             0;JMP
             
 
-            (main_END_PROGRAM)
+            (Sys.init_END_PROGRAM)
             
 

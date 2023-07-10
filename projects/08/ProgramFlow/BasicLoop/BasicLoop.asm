@@ -1,4 +1,10 @@
 
+            @256
+            D=A
+            @SP
+            M=D
+            
+
             @0
             D=A
             
@@ -35,7 +41,7 @@
             M=D
             
 
-            (main_LOOP_START)
+            (Sys.init_LOOP_START)
             
 
             @0
@@ -180,7 +186,7 @@
             D=M
             
 
-            @main_LOOP_START
+            @Sys.init_LOOP_START
             D;JNE
             
 
