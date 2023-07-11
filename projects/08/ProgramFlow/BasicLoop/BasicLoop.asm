@@ -1,28 +1,27 @@
 
-        @256
-        D=A
-        @SP
-        M=D
-        
-        
-                    
+    @256
+    D=A
+    @SP
+    M=D
+    
+            
         @0
         D=A
         
-                    
-@SP
-A=M
-M=D
-@SP
-M=M+1
-
-                    
-                    
-@SP
-AM=M-1
-D=M
-
-                    
+            
+    @SP
+    A=M
+    M=D
+    @SP
+    M=M+1
+    
+            
+            
+    @SP
+    AM=M-1
+    D=M
+    
+            
         // R13 = D
         @R13
         M=D
@@ -42,54 +41,54 @@ D=M
         A=M
         M=D
         
-                    
-        (LOOP_START)
-        
-                    
+            
+    (LOOP_START)
+    
+            
         @0
         D=A
         @2
         A=D+M
         D=M
         
-                    
-@SP
-A=M
-M=D
-@SP
-M=M+1
-
-                    
-                    
+            
+    @SP
+    A=M
+    M=D
+    @SP
+    M=M+1
+    
+            
+            
         @0
         D=A
         @1
         A=D+M
         D=M
         
-                    
-@SP
-A=M
-M=D
-@SP
-M=M+1
-
-                    
-        
-@SP
-AM=M-1
-D=M
-
-        @SP
-        A=M-1
-        M=D+M
-        
-                    
-@SP
-AM=M-1
-D=M
-
-                    
+            
+    @SP
+    A=M
+    M=D
+    @SP
+    M=M+1
+    
+            
+    
+    @SP
+    AM=M-1
+    D=M
+    
+    @SP
+    A=M-1
+    M=D+M
+    
+            
+    @SP
+    AM=M-1
+    D=M
+    
+            
         // R13 = D
         @R13
         M=D
@@ -109,49 +108,49 @@ D=M
         A=M
         M=D
         
-                    
-                    
+            
+            
         @0
         D=A
         @2
         A=D+M
         D=M
         
-                    
-@SP
-A=M
-M=D
-@SP
-M=M+1
-
-                    
-                    
+            
+    @SP
+    A=M
+    M=D
+    @SP
+    M=M+1
+    
+            
+            
         @1
         D=A
         
-                    
-@SP
-A=M
-M=D
-@SP
-M=M+1
-
-                    
-        
-@SP
-AM=M-1
-D=M
-
-        @SP
-        A=M-1
-        M=M-D
-        
-                    
-@SP
-AM=M-1
-D=M
-
-                    
+            
+    @SP
+    A=M
+    M=D
+    @SP
+    M=M+1
+    
+            
+    
+    @SP
+    AM=M-1
+    D=M
+    
+    @SP
+    A=M-1
+    M=M-D
+    
+            
+    @SP
+    AM=M-1
+    D=M
+    
+            
         // R13 = D
         @R13
         M=D
@@ -171,42 +170,42 @@ D=M
         A=M
         M=D
         
-                    
-                    
+            
+            
         @0
         D=A
         @2
         A=D+M
         D=M
         
-                    
-@SP
-A=M
-M=D
-@SP
-M=M+1
-
-                    
-        
-@SP
-AM=M-1
-D=M
-
-        @LOOP_START
-        D;JNE
-        
-                    
+            
+    @SP
+    A=M
+    M=D
+    @SP
+    M=M+1
+    
+            
+    
+    @SP
+    AM=M-1
+    D=M
+    
+    @LOOP_START
+    D;JNE
+    
+            
         @0
         D=A
         @1
         A=D+M
         D=M
         
-                    
-@SP
-A=M
-M=D
-@SP
-M=M+1
-
-                    
+            
+    @SP
+    A=M
+    M=D
+    @SP
+    M=M+1
+    
+            
