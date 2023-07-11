@@ -1,177 +1,175 @@
 
-            @256
-            D=A
-            @SP
-            M=D
+        @256
+        D=A
+        @SP
+        M=D
+        
+        
+                // 1 Emit the label
+                (SimpleFunction.test)
+
+                // 2 Initialize local vars to 0
+                @LCL
+                A=M
+                
+            M=0
+            AD=A+1
+            
+            M=0
+            AD=A+1
             
 
-            (SimpleFunction.test)
-            
+                // 3 Set stack pointer to point to the end of the nlocals block.
+                @SP
+                M=D
+                
+                
+        @0
+        D=A
+        @1
+        A=D+M
+        D=M
+        
+                
+@SP
+A=M
+M=D
+@SP
+M=M+1
 
-                    @LCL
-                    A=M
-                    
+                
+                
+        @1
+        D=A
+        @1
+        A=D+M
+        D=M
+        
+                
+@SP
+A=M
+M=D
+@SP
+M=M+1
 
-                        M=0
-                        AD=A+1
-                        
+                
+        
+@SP
+AM=M-1
+D=M
 
-                        M=0
-                        AD=A+1
-                        
+        @SP
+        A=M-1
+        M=D+M
+        
+        @SP
+        A=M-1
+        M=!M
+        
+                
+        @0
+        D=A
+        @2
+        A=D+M
+        D=M
+        
+                
+@SP
+A=M
+M=D
+@SP
+M=M+1
 
-                    @SP
-                    M=D
-                    
+                
+        
+@SP
+AM=M-1
+D=M
 
-            @0
-            D=A
-            @1
-            A=D+M
-            D=M
-            
+        @SP
+        A=M-1
+        M=D+M
+        
+                
+        @1
+        D=A
+        @2
+        A=D+M
+        D=M
+        
+                
+@SP
+A=M
+M=D
+@SP
+M=M+1
 
-            @SP
-            A=M
-            M=D
-            @SP
-            M=M+1
-            
+                
+        
+@SP
+AM=M-1
+D=M
 
-            @1
-            D=A
-            @1
-            A=D+M
-            D=M
-            
+        @SP
+        A=M-1
+        M=M-D
+        
+                // 1) Store stack frame base address and return address in temp registers.
+                @LCL
+                D=M
 
-            @SP
-            A=M
-            M=D
-            @SP
-            M=M+1
-            
+                @13
+                M=D
 
-            @SP
-            AM=M-1
-            D=M
-            
+                @5
+                A=D-A
+                D=M
 
-            @SP
-            A=M-1
-            M=D+M
-            
+                @14
+                M=D
 
-            @SP
-            A=M-1
-            M=!M
-            
+                // 2) Set arg[0] = pop() and set the stack head to &arg + 1
+                @SP
+                A=M-1
+                D=M
 
-            @0
-            D=A
-            @2
-            A=D+M
-            D=M
-            
+                @ARG
+                A=M
+                M=D
 
-            @SP
-            A=M
-            M=D
-            @SP
-            M=M+1
-            
+                @ARG
+                D=M+1
 
-            @SP
-            AM=M-1
-            D=M
-            
+                @SP
+                M=D
 
-            @SP
-            A=M-1
-            M=D+M
-            
+                // 3) Restore &local, &arg, &this, &that of the parent function.
+                @13
+                AM=M-1
+                D=M
+                @THAT
+                M=D
 
-            @1
-            D=A
-            @2
-            A=D+M
-            D=M
-            
+                @13
+                AM=M-1
+                D=M
+                @THIS
+                M=D
 
-            @SP
-            A=M
-            M=D
-            @SP
-            M=M+1
-            
+                @13
+                AM=M-1
+                D=M
+                @ARG
+                M=D
 
-            @SP
-            AM=M-1
-            D=M
-            
+                @13
+                AM=M-1
+                D=M
+                @LCL
+                M=D
 
-            @SP
-            A=M-1
-            M=M-D
-            
-
-                    // 1) Store stack frame base address and return address in temp registers.
-                    @LCL
-                    D=M
-
-                    @13
-                    M=D
-
-                    @5
-                    A=D-A
-                    D=M
-
-                    @14
-                    M=D
-
-                    // 2) Set arg[0] = pop() and set the stack head to &arg + 1
-                    @SP
-                    A=M-1
-                    D=M
-
-                    @ARG
-                    A=M
-                    M=D
-
-                    @ARG
-                    D=M+1
-
-                    @SP
-                    M=D
-
-                    // 3) Restore &local, &arg, &this, &that of the parent function.
-                    @13
-                    AM=M-1
-                    D=M
-                    @THAT
-                    M=D
-
-                    @13
-                    AM=M-1
-                    D=M
-                    @THIS
-                    M=D
-
-                    @13
-                    AM=M-1
-                    D=M
-                    @ARG
-                    M=D
-
-                    @13
-                    AM=M-1
-                    D=M
-                    @LCL
-                    M=D
-
-                    // 4) Continue execution of parent function where we left off.
-                    @14
-                    A=M
-                    0;JMP
-                    
-
+                // 4) Continue execution of parent function where we left off.
+                @14
+                A=M
+                0;JMP
+                
