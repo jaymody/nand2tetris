@@ -42,22 +42,26 @@ class Translator:
     ############################
     def emit_load_constant(self, val: int):
         """D = val"""
+
         self.emit(f"@{val}")
         self.emit("D=A")
 
     def emit_load_from_addr(self, addr: int):
         """D = RAM[addr]"""
+
         self.emit(f"@{addr}")
         self.emit("D=M")
 
     def emit_load_from_pointer(self, ptr: int):
         """D = RAM[RAM[ptr]]"""
+
         self.emit(f"@{ptr}")
         self.emit("A=M")
         self.emit("D=M")
 
     def emit_load_from_pointer_offset(self, ptr: int, offset: int):
         """D = RAM[RAM[ptr] + offset]"""
+
         self.emit_load_constant(offset)
         self.emit(f"@{ptr}")
         self.emit("A=D+M")
@@ -68,17 +72,20 @@ class Translator:
     ############################
     def emit_save_to_addr(self, addr: int):
         """RAM[addr] = D"""
+
         self.emit(f"@{addr}")
         self.emit("M=D")
 
     def emit_save_to_pointer(self, ptr: int):
         """RAM[RAM[ptr]] = D"""
+
         self.emit(f"@{ptr}")
         self.emit("A=M")
         self.emit("M=D")
 
     def emit_save_to_pointer_offset(self, ptr: int, offset: int):
         """RAM[RAM[ptr] + offset] = D"""
+
         # R13 = D
         self.emit("@R13")
         self.emit("M=D")
@@ -102,11 +109,19 @@ class Translator:
     #### STACK PUSH/POP ####
     ########################
     def emit_stack_push(self):
+        """
+        head   = D
+        &head += 1
+        """
         self.emit_save_to_pointer(SP)
         self.emit("@SP")
         self.emit("M=M+1")
 
     def emit_stack_pop(self):
+        """
+        &head -= 1
+        D = head
+        """
         self.emit("@SP")
         self.emit("AM=M-1")
         self.emit("D=M")
@@ -115,12 +130,23 @@ class Translator:
     #### ARITHMETIC/LOGIC OPS ####
     ##############################
     def emit_unary_op(self, op: str):
+        """
+        x = pop()
+        push(op x)
+        """
+
         op = {"not": "!", "neg": "-"}[op]
         self.emit("@SP")
         self.emit("A=M-1")
         self.emit(f"M={op}M")
 
     def emit_binary_op(self, op: str):
+        """
+        y = pop()
+        x = pop()
+        push(x op y)
+        """
+
         op = {"add": "D+M", "sub": "M-D", "and": "D&M", "or": "D|M"}[op]
         self.emit_stack_pop()
         self.emit("@SP")
@@ -128,6 +154,19 @@ class Translator:
         self.emit(f"M={op}")
 
     def emit_cmp_op(self, op: str):
+        """
+        y = pop()
+        x = pop()
+
+        if x op y:
+            push(-1)
+        else:
+            push(0)
+
+        For example, if op is JGT, then -1 (true) is pushed to the stack if x > y else
+        0 (false) is pushed to the stack.
+        """
+
         op = {"eq": "JEQ", "gt": "JGT", "lt": "JLT"}[op]
         uid = self.get_unique_label_id()
         true_branch_label = f"TRUE_BRANCH_{uid}"
@@ -160,6 +199,8 @@ class Translator:
     #### LOAD FROM SEGMENT ####
     ###########################
     def emit_load_from_segment(self, segment: str, val: int, module_name: str):
+        """D = segment[val]"""
+
         match segment:
             case "argument":
                 self.emit_load_from_pointer_offset(ARG, val)
@@ -184,6 +225,8 @@ class Translator:
     #### SAVE TO SEGMENT ####
     #########################
     def emit_save_to_segment(self, segment: str, val: int, module_name: str):
+        """segment[val] = D"""
+
         match segment:
             case "argument":
                 self.emit_save_to_pointer_offset(ARG, val)
@@ -208,13 +251,16 @@ class Translator:
     #### PROGRAM FLOW ####
     ######################
     def emit_label(self, label: str):
+        """emit label"""
         self.emit(f"({label})")
 
     def emit_goto_label(self, label: str):
+        """goto label"""
         self.emit(f"@{label}")
         self.emit("0;JMP")
 
     def emit_if_goto_label(self, label: str):
+        """if D != 0 then goto label"""
         self.emit_stack_pop()
         self.emit(f"@{label}")
         self.emit("D;JNE")
