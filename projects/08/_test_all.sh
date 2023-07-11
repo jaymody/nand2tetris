@@ -16,9 +16,9 @@ function run_tests {(
     run_test "./ProgramFlow/BasicLoop/BasicLoop.vm" "./ProgramFlow/BasicLoop/BasicLoop"
     run_test "./ProgramFlow/FibonacciSeries/FibonacciSeries.vm" "./ProgramFlow/FibonacciSeries/FibonacciSeries"
     run_test "./FunctionCalls/SimpleFunction/SimpleFunction.vm" "./FunctionCalls/SimpleFunction/SimpleFunction"
-    # run_test "./FunctionCalls/FibonacciElement" "./FunctionCalls/FibonacciElement/FibonacciElement"
-    # run_test "./FunctionCalls/NestedCall" "./FunctionCalls/NestedCall/NestedCall"
+    run_test "./FunctionCalls/NestedCall" "./FunctionCalls/NestedCall/NestedCall"
     # run_test "./FunctionCalls/StaticsTest" "./FunctionCalls/StaticsTest/StaticsTest"
+    # run_test "./FunctionCalls/FibonacciElement" "./FunctionCalls/FibonacciElement/FibonacciElement"
 )}
 
 run_tests
