@@ -5,30 +5,30 @@
         M=D
         
         
-                
+                    
         @17
         D=A
         
-                
+                    
 @SP
 A=M
 M=D
 @SP
 M=M+1
 
-                
-                
+                    
+                    
         @17
         D=A
         
-                
+                    
 @SP
 A=M
 M=D
 @SP
 M=M+1
 
-                
+                    
         
 @SP
 AM=M-1
@@ -58,30 +58,30 @@ D=M
 
         (END_COMPARISON_1)
         
-                
+                    
         @17
         D=A
         
-                
+                    
 @SP
 A=M
 M=D
 @SP
 M=M+1
 
-                
-                
+                    
+                    
         @16
         D=A
         
-                
+                    
 @SP
 A=M
 M=D
 @SP
 M=M+1
 
-                
+                    
         
 @SP
 AM=M-1
@@ -111,30 +111,30 @@ D=M
 
         (END_COMPARISON_2)
         
-                
+                    
         @16
         D=A
         
-                
+                    
 @SP
 A=M
 M=D
 @SP
 M=M+1
 
-                
-                
+                    
+                    
         @17
         D=A
         
-                
+                    
 @SP
 A=M
 M=D
 @SP
 M=M+1
 
-                
+                    
         
 @SP
 AM=M-1
@@ -164,30 +164,30 @@ D=M
 
         (END_COMPARISON_3)
         
-                
+                    
         @892
         D=A
         
-                
+                    
 @SP
 A=M
 M=D
 @SP
 M=M+1
 
-                
-                
+                    
+                    
         @891
         D=A
         
-                
+                    
 @SP
 A=M
 M=D
 @SP
 M=M+1
 
-                
+                    
         
 @SP
 AM=M-1
@@ -217,30 +217,30 @@ D=M
 
         (END_COMPARISON_4)
         
-                
+                    
         @891
         D=A
         
-                
+                    
 @SP
 A=M
 M=D
 @SP
 M=M+1
 
-                
-                
+                    
+                    
         @892
         D=A
         
-                
+                    
 @SP
 A=M
 M=D
 @SP
 M=M+1
 
-                
+                    
         
 @SP
 AM=M-1
@@ -270,30 +270,30 @@ D=M
 
         (END_COMPARISON_5)
         
-                
+                    
         @891
         D=A
         
-                
+                    
 @SP
 A=M
 M=D
 @SP
 M=M+1
 
-                
-                
+                    
+                    
         @891
         D=A
         
-                
+                    
 @SP
 A=M
 M=D
 @SP
 M=M+1
 
-                
+                    
         
 @SP
 AM=M-1
@@ -323,30 +323,30 @@ D=M
 
         (END_COMPARISON_6)
         
-                
+                    
         @32767
         D=A
         
-                
+                    
 @SP
 A=M
 M=D
 @SP
 M=M+1
 
-                
-                
+                    
+                    
         @32766
         D=A
         
-                
+                    
 @SP
 A=M
 M=D
 @SP
 M=M+1
 
-                
+                    
         
 @SP
 AM=M-1
@@ -376,30 +376,30 @@ D=M
 
         (END_COMPARISON_7)
         
-                
+                    
         @32766
         D=A
         
-                
+                    
 @SP
 A=M
 M=D
 @SP
 M=M+1
 
-                
-                
+                    
+                    
         @32767
         D=A
         
-                
+                    
 @SP
 A=M
 M=D
 @SP
 M=M+1
 
-                
+                    
         
 @SP
 AM=M-1
@@ -429,30 +429,30 @@ D=M
 
         (END_COMPARISON_8)
         
-                
+                    
         @32766
         D=A
         
-                
+                    
 @SP
 A=M
 M=D
 @SP
 M=M+1
 
-                
-                
+                    
+                    
         @32766
         D=A
         
-                
+                    
 @SP
 A=M
 M=D
 @SP
 M=M+1
 
-                
+                    
         
 @SP
 AM=M-1
@@ -482,42 +482,42 @@ D=M
 
         (END_COMPARISON_9)
         
-                
+                    
         @57
         D=A
         
-                
+                    
 @SP
 A=M
 M=D
 @SP
 M=M+1
 
-                
-                
+                    
+                    
         @31
         D=A
         
-                
+                    
 @SP
 A=M
 M=D
 @SP
 M=M+1
 
-                
-                
+                    
+                    
         @53
         D=A
         
-                
+                    
 @SP
 A=M
 M=D
 @SP
 M=M+1
 
-                
+                    
         
 @SP
 AM=M-1
@@ -527,18 +527,18 @@ D=M
         A=M-1
         M=D+M
         
-                
+                    
         @112
         D=A
         
-                
+                    
 @SP
 A=M
 M=D
 @SP
 M=M+1
 
-                
+                    
         
 @SP
 AM=M-1
@@ -561,18 +561,18 @@ D=M
         A=M-1
         M=D&M
         
-                
+                    
         @82
         D=A
         
-                
+                    
 @SP
 A=M
 M=D
 @SP
 M=M+1
 
-                
+                    
         
 @SP
 AM=M-1

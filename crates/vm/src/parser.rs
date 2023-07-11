@@ -1,30 +1,13 @@
 use crate::opcode::{OpCode, Segment};
 
-pub fn parse(text: &str) -> Vec<OpCode> {
-    let mut opcodes = Vec::new();
-
-    for line in text.lines() {
-        let opcode_str = remove_comments(line).trim();
-
-        if opcode_str.is_empty() {
-            continue;
-        }
-
-        let opcode = parse_opcode(opcode_str);
-        opcodes.push(opcode);
-    }
-
-    opcodes
-}
-
 fn remove_comments(s: &str) -> &str {
     s.split_once("//").map(|(s, _)| s).unwrap_or(s)
 }
 
-fn parse_opcode(opcode_str: &str) -> OpCode {
-    let args: Vec<&str> = opcode_str.split_whitespace().collect();
-    match args[..] {
-        [] => panic!("opcode_str must be non-empty (whitespace is considered empty)"),
+pub fn parse_opcode(line: &str) -> Option<OpCode> {
+    let args: Vec<&str> = remove_comments(line).trim().split_whitespace().collect();
+    let opcode = match args[..] {
+        [] => return None,
         [op] => match op {
             "return" => OpCode::Return,
             "add" => OpCode::Add,
@@ -80,5 +63,6 @@ fn parse_opcode(opcode_str: &str) -> OpCode {
                 args.len() - 1
             )
         }
-    }
+    };
+    Some(opcode)
 }

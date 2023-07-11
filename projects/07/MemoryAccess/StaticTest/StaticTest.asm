@@ -5,96 +5,96 @@
         M=D
         
         
-                
+                    
         @111
         D=A
         
-                
+                    
 @SP
 A=M
 M=D
 @SP
 M=M+1
 
-                
-                
+                    
+                    
         @333
         D=A
         
-                
+                    
 @SP
 A=M
 M=D
 @SP
 M=M+1
 
-                
-                
+                    
+                    
         @888
         D=A
         
-                
+                    
 @SP
 A=M
 M=D
 @SP
 M=M+1
 
-                
-                
+                    
+                    
 @SP
 AM=M-1
 D=M
 
-                
-        @24
+                    
+        @16
         M=D
         
-                
-                
+                    
+                    
 @SP
 AM=M-1
 D=M
 
-                
-        @19
-        M=D
-        
-                
-                
-@SP
-AM=M-1
-D=M
-
-                
+                    
         @17
         M=D
         
-                
-                
-        @19
-        D=M
-        
-                
+                    
+                    
 @SP
-A=M
-M=D
-@SP
-M=M+1
+AM=M-1
+D=M
 
-                
-                
+                    
+        @18
+        M=D
+        
+                    
+                    
         @17
         D=M
         
-                
+                    
 @SP
 A=M
 M=D
 @SP
 M=M+1
 
-                
+                    
+                    
+        @18
+        D=M
+        
+                    
+@SP
+A=M
+M=D
+@SP
+M=M+1
+
+                    
         
 @SP
 AM=M-1
@@ -104,18 +104,18 @@ D=M
         A=M-1
         M=M-D
         
-                
-        @24
+                    
+        @16
         D=M
         
-                
+                    
 @SP
 A=M
 M=D
 @SP
 M=M+1
 
-                
+                    
         
 @SP
 AM=M-1

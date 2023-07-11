@@ -1,3 +1,10 @@
+use std::{
+    collections::HashMap,
+    fs::File,
+    io::{BufRead, BufReader},
+    path::PathBuf,
+};
+
 /// Translates VM to Assembly.
 ///
 /// For the purposes of documentation:
@@ -14,7 +21,10 @@
 ///     &arg        = RAM[ARG]          (argument base address)
 ///     arg[N]      = RAM[&arg + N]     (argument value at offset N)
 ///
-use crate::opcode::{OpCode, Segment};
+use crate::{
+    opcode::{OpCode, Segment},
+    parser::parse_opcode,
+};
 
 const LCL: u16 = 1;
 const ARG: u16 = 2;
@@ -23,13 +33,283 @@ const THAT: u16 = 4;
 const TEMP: u16 = 5;
 const STATIC: u16 = 16;
 
-static mut UNIQUE_ID: u32 = 0;
-fn get_and_inc_unique_label_id_counter() -> u32 {
-    unsafe {
-        UNIQUE_ID += 1;
-        UNIQUE_ID
+pub struct Translator {
+    unique_cmp_label_counter: u16,
+    static_vars: HashMap<(String, u16), u16>,
+    module_name: String,
+}
+
+impl Translator {
+    fn get_and_inc_unique_cmp_label_counter(&mut self) -> u16 {
+        self.unique_cmp_label_counter += 1;
+        self.unique_cmp_label_counter
+    }
+
+    fn get_static_var_addr(&mut self, val: u16) -> u16 {
+        let len = self.static_vars.len() as u16;
+        *self
+            .static_vars
+            .entry((self.module_name.to_string(), val))
+            .or_insert(STATIC + len)
+    }
+
+    fn emit_opcode(&mut self, opcode: OpCode) -> String {
+        match opcode {
+            OpCode::Add => emit_binary_op("D+M"),
+            OpCode::Sub => emit_binary_op("M-D"),
+            OpCode::Neg => emit_unary_op("-"),
+            OpCode::Eq => emit_cmp_op("JEQ", self.get_and_inc_unique_cmp_label_counter()),
+            OpCode::Gt => emit_cmp_op("JGT", self.get_and_inc_unique_cmp_label_counter()),
+            OpCode::Lt => emit_cmp_op("JLT", self.get_and_inc_unique_cmp_label_counter()),
+            OpCode::And => emit_binary_op("D&M"),
+            OpCode::Or => emit_binary_op("D|M"),
+            OpCode::Not => emit_unary_op("!"),
+            OpCode::Push(seg, val) => {
+                let get_data = match seg {
+                    Segment::Argument => emit_load_from_pointer_offset(ARG, val),
+                    Segment::Local => emit_load_from_pointer_offset(LCL, val),
+                    Segment::Constant => emit_load_constant(val),
+                    Segment::This => emit_load_from_pointer_offset(THIS, val),
+                    Segment::That => emit_load_from_pointer_offset(THAT, val),
+                    Segment::Pointer => emit_load_from_addr(THIS + val),
+                    Segment::Temp => emit_load_from_addr(TEMP + val),
+                    Segment::Static => emit_load_from_addr(self.get_static_var_addr(val)),
+                };
+                format!(
+                    "
+                    {get_data}
+                    {EMIT_STACK_PUSH}
+                    "
+                )
+            }
+            OpCode::Pop(seg, val) => {
+                let save_data = match seg {
+                    Segment::Argument => emit_save_to_pointer_offset(ARG, val),
+                    Segment::Local => emit_save_to_pointer_offset(LCL, val),
+                    Segment::Constant => panic!("pop to constant not supported"),
+                    Segment::This => emit_save_to_pointer_offset(THIS, val),
+                    Segment::That => emit_save_to_pointer_offset(THAT, val),
+                    Segment::Pointer => emit_save_to_addr(THIS + val),
+                    Segment::Temp => emit_save_to_addr(TEMP + val),
+                    Segment::Static => emit_save_to_addr(self.get_static_var_addr(val)),
+                };
+                format!(
+                    "
+                    {EMIT_STACK_POP}
+                    {save_data}
+                    "
+                )
+            }
+            OpCode::Label(name) => emit_label(&name),
+            OpCode::Goto(name) => emit_goto_label(&name),
+            OpCode::IfGoto(name) => emit_if_goto_label(&name),
+            OpCode::Function(name, nlocals) => {
+                // The basic logic is as follows:
+                //
+                //  1) Emit a label using name as the value, so we can call our
+                //     function with goto name.
+                //
+                //  2) Initialize the local block to 0s:
+                //
+                //      for i in 0..nlocals
+                //          local[i] = 0
+                //
+                //  3) Set the stack pointer to point to the address right after
+                //     the end of the local block:
+                //
+                //      &head = &local + nlocals
+
+                // NOTE: We don't reuse 'push constant 0' because that would result
+                // in (2 + 5) * nlocals instructions (2 for setting D=0
+                // and 5 for pushing to the stack) while this approach only
+                // takes 2 * nlocals + 4 instructions.
+                let set_nlocals_to_zero = "
+                M=0
+                AD=A+1
+                "
+                .repeat(nlocals as usize);
+
+                format!(
+                    "
+                    // 1 Emit the label
+                    ({name})
+
+                    // 2 Initialize local vars to 0
+                    @LCL
+                    A=M
+                    {set_nlocals_to_zero}
+
+                    // 3 Set stack pointer to point to the end of the nlocals block.
+                    @SP
+                    M=D
+                    "
+                )
+            }
+            OpCode::Call(_, _) => todo!(),
+            OpCode::Return => {
+                // The basic logic is as follows:
+                //
+                // 1) Store the address to the start of the stack frame and the
+                //    return address to temp variables.
+                //
+                //      FRAME  = &local      (start of the stack frame)
+                //      RET    = FRAME - 5   (the return address)
+                //
+                // 2) Store the computed value (at the current stack head) to
+                //    the parent functions stack head location (which is &arg)
+                //    and reset parent functions stack head (+ 1, because we
+                //    just added to it) as our stack head.
+                //
+                //      arg[0] = pop()      (set parent function's stack head t)
+                //      &head  = &arg + 1   (restore stack head of parent function)
+                //
+                // 3) Restore &local, &arg, &this, &that of the parent function.
+                //
+                //          &that  = FRAME - 1
+                //          &this  = FRAME - 2
+                //          &arg   = FRAME - 3
+                //          &local = FRAME - 4
+                //
+                // 4) Finally, we goto the return address to continue execution
+                //    from our parent function.
+                //
+                //          goto RET
+                //
+                // Two quick notes:
+                //
+                //  a) Why do we store &local in a temp register FRAME? Can't
+                //     we just use it directly, since &local is the last thing
+                //     we restore?
+                //
+                //          Yeah, I guess you could, but this is more readable
+                //          and clear.
+                //
+                //  b) Why do we store the return address in a temp register RET?
+                //     Can't we just do 'goto FRAME - 5' at the very end?
+                //
+                //          No. The problem is if nargs is 0, then args[0]
+                //          and FRAME - 5 point to the same location. So,
+                //          in step 2, when we run arg[0] = pop(), we'd be
+                //          overwriting the return address.
+                //
+
+                const FRAME: u16 = 13;
+                const RET: u16 = 14;
+
+                format!(
+                    "
+                    // 1) Store stack frame base address and return address in temp registers.
+                    @LCL
+                    D=M
+
+                    @{FRAME}
+                    M=D
+
+                    @5
+                    A=D-A
+                    D=M
+
+                    @{RET}
+                    M=D
+
+                    // 2) Set arg[0] = pop() and set the stack head to &arg + 1
+                    @SP
+                    A=M-1
+                    D=M
+
+                    @ARG
+                    A=M
+                    M=D
+
+                    @ARG
+                    D=M+1
+
+                    @SP
+                    M=D
+
+                    // 3) Restore &local, &arg, &this, &that of the parent function.
+                    @{FRAME}
+                    AM=M-1
+                    D=M
+                    @THAT
+                    M=D
+
+                    @{FRAME}
+                    AM=M-1
+                    D=M
+                    @THIS
+                    M=D
+
+                    @{FRAME}
+                    AM=M-1
+                    D=M
+                    @ARG
+                    M=D
+
+                    @{FRAME}
+                    AM=M-1
+                    D=M
+                    @LCL
+                    M=D
+
+                    // 4) Continue execution of parent function where we left off.
+                    @{RET}
+                    A=M
+                    0;JMP
+                    ",
+                )
+            }
+        }
+    }
+
+    fn translate_file(&mut self, file: PathBuf) -> String {
+        self.module_name = file.file_name().unwrap().to_str().unwrap().to_string();
+
+        let mut assembly = String::new();
+        let reader = BufReader::new(File::open(&file).unwrap());
+        for line in reader.lines() {
+            if let Some(opcode) = parse_opcode(&line.unwrap()) {
+                let code = self.emit_opcode(opcode);
+                assembly.push_str(&code);
+            }
+        }
+        assembly
+    }
+
+    pub fn translate(files: Vec<PathBuf>, goto_sys_init: bool) -> String {
+        let mut translator = Translator {
+            unique_cmp_label_counter: 0,
+            static_vars: HashMap::new(),
+            module_name: "throwaway".to_string(),
+        };
+        let mut assembly = String::new();
+
+        assembly.push_str(&emit_init(goto_sys_init));
+        for file in files {
+            assembly.push_str(&translator.translate_file(file));
+        }
+
+        assembly
     }
 }
+
+/// head = D
+/// &head += 1
+static EMIT_STACK_PUSH: &str = "
+@SP
+A=M
+M=D
+@SP
+M=M+1
+";
+
+/// &head -= 1
+/// D = head
+static EMIT_STACK_POP: &str = "
+@SP
+AM=M-1
+D=M
+";
 
 /// &head = 256
 /// GOTO Sys.init if goto_sys_init = true
@@ -64,24 +344,6 @@ fn emit_load_constant(val: u16) -> String {
     )
 }
 
-/// head = D
-/// &head += 1
-static EMIT_STACK_PUSH: &str = "
-@SP
-A=M
-M=D
-@SP
-M=M+1
-";
-
-/// &head -= 1
-/// D = head
-static EMIT_STACK_POP: &str = "
-@SP
-AM=M-1
-D=M
-";
-
 /// head = unary_op head
 fn emit_unary_op(op: &str) -> String {
     format!(
@@ -109,8 +371,7 @@ fn emit_binary_op(op: &str) -> String {
 ///     head = -1 (aka true)
 /// else
 ///     head = 0  (aka false)
-fn emit_cmp_op(op: &str) -> String {
-    let unique_id = get_and_inc_unique_label_id_counter();
+fn emit_cmp_op(op: &str, unique_id: u16) -> String {
     format!(
         "
         {EMIT_STACK_POP}
@@ -234,213 +495,4 @@ fn emit_if_goto_label(label: &str) -> String {
         D;JNE
         ",
     )
-}
-
-pub fn emit_opcode(opcode: OpCode) -> String {
-    match opcode {
-        OpCode::Add => emit_binary_op("D+M"),
-        OpCode::Sub => emit_binary_op("M-D"),
-        OpCode::Neg => emit_unary_op("-"),
-        OpCode::Eq => emit_cmp_op("JEQ"),
-        OpCode::Gt => emit_cmp_op("JGT"),
-        OpCode::Lt => emit_cmp_op("JLT"),
-        OpCode::And => emit_binary_op("D&M"),
-        OpCode::Or => emit_binary_op("D|M"),
-        OpCode::Not => emit_unary_op("!"),
-        OpCode::Push(seg, val) => {
-            let get_data = match seg {
-                Segment::Argument => emit_load_from_pointer_offset(ARG, val),
-                Segment::Local => emit_load_from_pointer_offset(LCL, val),
-                Segment::Static => emit_load_from_addr(STATIC + val),
-                Segment::Constant => emit_load_constant(val),
-                Segment::This => emit_load_from_pointer_offset(THIS, val),
-                Segment::That => emit_load_from_pointer_offset(THAT, val),
-                Segment::Pointer => emit_load_from_addr(THIS + val),
-                Segment::Temp => emit_load_from_addr(TEMP + val),
-            };
-            format!(
-                "
-                {get_data}
-                {EMIT_STACK_PUSH}
-                "
-            )
-        }
-        OpCode::Pop(seg, val) => {
-            let save_data = match seg {
-                Segment::Argument => emit_save_to_pointer_offset(ARG, val),
-                Segment::Local => emit_save_to_pointer_offset(LCL, val),
-                Segment::Static => emit_save_to_addr(STATIC + val),
-                Segment::Constant => panic!("pop to constant not supported"),
-                Segment::This => emit_save_to_pointer_offset(THIS, val),
-                Segment::That => emit_save_to_pointer_offset(THAT, val),
-                Segment::Pointer => emit_save_to_addr(THIS + val),
-                Segment::Temp => emit_save_to_addr(TEMP + val),
-            };
-            format!(
-                "
-                {EMIT_STACK_POP}
-                {save_data}
-                "
-            )
-        }
-        OpCode::Label(name) => emit_label(&name),
-        OpCode::Goto(name) => emit_goto_label(&name),
-        OpCode::IfGoto(name) => emit_if_goto_label(&name),
-        OpCode::Function(name, nlocals) => {
-            // The basic logic is as follows:
-            //
-            //  1) Emit a label using name as the value, so we can call our
-            //     function with goto name.
-            //
-            //  2) Initialize the local block to 0s:
-            //
-            //      for i in 0..nlocals
-            //          local[i] = 0
-            //
-            //  3) Set the stack pointer to point to the address right after
-            //     the end of the local block:
-            //
-            //      &head = &local + nlocals
-
-            // NOTE: We don't reuse 'push constant 0' because that would result
-            // in (2 + 5) * nlocals instructions (2 for setting D=0
-            // and 5 for pushing to the stack) while this approach only
-            // takes 2 * nlocals + 4 instructions.
-            let set_nlocals_to_zero = "
-            M=0
-            AD=A+1
-            "
-            .repeat(nlocals as usize);
-
-            format!(
-                "
-                // 1 Emit the label
-                ({name})
-
-                // 2 Initialize local vars to 0
-                @LCL
-                A=M
-                {set_nlocals_to_zero}
-
-                // 3 Set stack pointer to point to the end of the nlocals block.
-                @SP
-                M=D
-                "
-            )
-        }
-        OpCode::Call(_, _) => todo!(),
-        OpCode::Return => {
-            // The basic logic is as follows:
-            //
-            // 1) Store the address to the start of the stack frame and the
-            //    return address to temp variables.
-            //
-            //      FRAME  = &local      (start of the stack frame)
-            //      RET    = FRAME - 5   (the return address)
-            //
-            // 2) Store the computed value (at the current stack head) to
-            //    the parent functions stack head location (which is &arg)
-            //    and reset parent functions stack head (+ 1, because we
-            //    just added to it) as our stack head.
-            //
-            //      arg[0] = pop()      (set parent function's stack head t)
-            //      &head  = &arg + 1   (restore stack head of parent function)
-            //
-            // 3) Restore &local, &arg, &this, &that of the parent function.
-            //
-            //          &that  = FRAME - 1
-            //          &this  = FRAME - 2
-            //          &arg   = FRAME - 3
-            //          &local = FRAME - 4
-            //
-            // 4) Finally, we goto the return address to continue execution
-            //    from our parent function.
-            //
-            //          goto RET
-            //
-            // Two quick notes:
-            //
-            //  a) Why do we store &local in a temp register FRAME? Can't
-            //     we just use it directly, since &local is the last thing
-            //     we restore?
-            //
-            //          Yeah, I guess you could, but this is more readable
-            //          and clear.
-            //
-            //  b) Why do we store the return address in a temp register RET?
-            //     Can't we just do 'goto FRAME - 5' at the very end?
-            //
-            //          No. The problem is if nargs is 0, then args[0]
-            //          and FRAME - 5 point to the same location. So,
-            //          in step 2, when we run arg[0] = pop(), we'd be
-            //          overwriting the return address.
-            //
-
-            const FRAME: u16 = 13;
-            const RET: u16 = 14;
-
-            format!(
-                "
-                // 1) Store stack frame base address and return address in temp registers.
-                @LCL
-                D=M
-
-                @{FRAME}
-                M=D
-
-                @5
-                A=D-A
-                D=M
-
-                @{RET}
-                M=D
-
-                // 2) Set arg[0] = pop() and set the stack head to &arg + 1
-                @SP
-                A=M-1
-                D=M
-
-                @ARG
-                A=M
-                M=D
-
-                @ARG
-                D=M+1
-
-                @SP
-                M=D
-
-                // 3) Restore &local, &arg, &this, &that of the parent function.
-                @{FRAME}
-                AM=M-1
-                D=M
-                @THAT
-                M=D
-
-                @{FRAME}
-                AM=M-1
-                D=M
-                @THIS
-                M=D
-
-                @{FRAME}
-                AM=M-1
-                D=M
-                @ARG
-                M=D
-
-                @{FRAME}
-                AM=M-1
-                D=M
-                @LCL
-                M=D
-
-                // 4) Continue execution of parent function where we left off.
-                @{RET}
-                A=M
-                0;JMP
-                ",
-            )
-        }
-    }
 }
