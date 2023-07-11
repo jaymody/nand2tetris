@@ -71,32 +71,36 @@ def emit_binary_op(op: str) -> str:
 def emit_cmp_op(op: str) -> str:
     op = {"eq": "JEQ", "gt": "JGT", "lt": "JLT"}[op]
     uid = get_uid()
-    return f"""
-    {emit_stack_pop()}
-    // D = head - stack.pop()
-    @SP
-    A=M-1
-    D=M-D
-
-    // check condition
-    @SET_TO_TRUE_{uid}
-    D;{op}
-
-    // condition did not trigger, so set head=false=0
-    @SP
-    A=M-1
-    M=0
-    @END_COMPARISON_{uid}
-    0;JMP
-
-    // condition triggered, so x=true=-1
-    (SET_TO_TRUE_{uid})
-    @SP
-    A=M-1
-    M=-1
-
-    (END_COMPARISON_{uid})
-    """
+    return (
+        # D = head - stack.pop()
+        f"""
+        {emit_stack_pop()}
+        @SP
+        A=M-1
+        D=M-D
+        """
+        # check condition
+        f"""
+        @SET_TO_TRUE_{uid}
+        D;{op}
+        """
+        # if condition did not trigger, set head=false=0
+        f"""
+        @SP
+        A=M-1
+        M=0
+        @END_COMPARISON_{uid}
+        0;JMP
+        """
+        # if condition triggered, so x=true=-1
+        f"""
+        (SET_TO_TRUE_{uid})
+        @SP
+        A=M-1
+        M=-1
+        (END_COMPARISON_{uid})
+        """
+    )
 
 
 def emit_load_from_segment(segment: str, val: int, module_name: str) -> str:
@@ -144,26 +148,30 @@ def emit_load_from_segment(segment: str, val: int, module_name: str) -> str:
 
 def emit_save_to_segment(segment: str, val: int, module_name: str) -> str:
     def emit_save_to_pointer_offset(ptr: int, offset: int) -> str:
-        return f"""
-        // R13 = D
-        @R13
-        M=D
-
-        // R14 = RAM[ptr] + offset
-        @{offset}
-        D=A
-        @{ptr}
-        D=D+M
-        @R14
-        M=D
-
-        // RAM[R14] = R13
-        @R13
-        D=M
-        @R14
-        A=M
-        M=D
-        """
+        return (
+            # R13 = D
+            """
+            @R13
+            M=D
+            """
+            # R14 = RAM[ptr] + offset
+            f"""
+            @{offset}
+            D=A
+            @{ptr}
+            D=D+M
+            @R14
+            M=D
+            """
+            # RAM[R14] = R13
+            """
+            @R13
+            D=M
+            @R14
+            A=M
+            M=D
+            """
+        )
 
     def emit_save_to_addr(addr: int) -> str:
         return f"""
@@ -264,13 +272,25 @@ def translate_file(file: str):
 
 
 def translate(path: str):
+    # get files to translate
     files = glob.glob(os.path.join(path, "*.vm")) if os.path.isdir(path) else [path]
 
+    # init assembly code
     assembly = ""
     assembly += emit_init_stack_pointer()
+
+    # if we are translating a directory and not an individual file, we goto Sys.init
+    # which will be our entrypoint (otherwise, the entrypoint is simply the first
+    # command of the file we are translating)
     assembly += emit_goto_label("Sys.init") if os.path.isdir(path) else ""
+
+    # get assembly translation for each file
     for file in files:
         assembly += translate_file(file)
+
+    # strip trailing/leading whitespace for each line and remove any empty lines
+    assembly = "\n".join(filter(bool, map(lambda s: s.strip(), assembly.splitlines())))
+
     return assembly
 
 
