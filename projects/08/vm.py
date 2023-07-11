@@ -10,294 +10,266 @@ THAT = 4
 TEMP = 5
 STATIC = 16
 
-_UID = 0
 
+class Translator:
+    ################
+    #### BASICS ####
+    ################
+    def __init__(self, goto_sys_init: bool):
+        self.label_id = 0
+        self.assembly = ""
 
-def get_uid() -> int:
-    global _UID
-    _UID += 1
-    return _UID
+        # initialize stack pointer
+        self.emit_load_constant(256)
+        self.emit_save_to_addr(SP)
 
+        if goto_sys_init:
+            self.emit_goto_label("Sys.init")
 
-def get_static_var_label(module_name: str, val: int) -> str:
-    return f"{module_name}${val}"
+    def get_unique_label_id(self) -> int:
+        self.label_id += 1
+        return self.label_id
 
+    def get_static_var_label(self, module_name: str, val: int) -> str:
+        return f"{module_name}${val}"
 
-def emit_init_stack_pointer() -> str:
-    return """
-    @256
-    D=A
-    @SP
-    M=D
-    """
+    def emit(self, s):
+        self.assembly += s
+        self.assembly += "\n"
 
+    ############################
+    #### LOAD MEMORY INTO D ####
+    ############################
+    def emit_load_constant(self, val: int):
+        """D = val"""
+        self.emit(f"@{val}")
+        self.emit("D=A")
 
-def emit_stack_push() -> str:
-    return """
-    @SP
-    A=M
-    M=D
-    @SP
-    M=M+1
-    """
+    def emit_load_from_addr(self, addr: int):
+        """D = RAM[addr]"""
+        self.emit(f"@{addr}")
+        self.emit("D=M")
 
+    def emit_load_from_pointer(self, ptr: int):
+        """D = RAM[RAM[ptr]]"""
+        self.emit(f"@{ptr}")
+        self.emit("A=M")
+        self.emit("D=M")
 
-def emit_stack_pop() -> str:
-    return """
-    @SP
-    AM=M-1
-    D=M
-    """
+    def emit_load_from_pointer_offset(self, ptr: int, offset: int):
+        """D = RAM[RAM[ptr] + offset]"""
+        self.emit_load_constant(offset)
+        self.emit(f"@{ptr}")
+        self.emit("A=D+M")
+        self.emit("D=M")
 
+    ############################
+    #### SAVE D INTO MEMORY ####
+    ############################
+    def emit_save_to_addr(self, addr: int):
+        """RAM[addr] = D"""
+        self.emit(f"@{addr}")
+        self.emit("M=D")
 
-def emit_unary_op(op: str) -> str:
-    op = {"not": "!", "neg": "-"}[op]
-    return f"""
-    @SP
-    A=M-1
-    M={op}M
-    """
+    def emit_save_to_pointer(self, ptr: int):
+        """RAM[RAM[ptr]] = D"""
+        self.emit(f"@{ptr}")
+        self.emit("A=M")
+        self.emit("M=D")
 
-
-def emit_binary_op(op: str) -> str:
-    op = {"add": "D+M", "sub": "M-D", "and": "D&M", "or": "D|M"}[op]
-    return f"""
-    {emit_stack_pop()}
-    @SP
-    A=M-1
-    M={op}
-    """
-
-
-def emit_cmp_op(op: str) -> str:
-    op = {"eq": "JEQ", "gt": "JGT", "lt": "JLT"}[op]
-    uid = get_uid()
-    return (
-        # D = head - stack.pop()
-        f"""
-        {emit_stack_pop()}
-        @SP
-        A=M-1
-        D=M-D
-        """
-        # check condition
-        f"""
-        @SET_TO_TRUE_{uid}
-        D;{op}
-        """
-        # if condition did not trigger, set head=false=0
-        f"""
-        @SP
-        A=M-1
-        M=0
-        @END_COMPARISON_{uid}
-        0;JMP
-        """
-        # if condition triggered, so x=true=-1
-        f"""
-        (SET_TO_TRUE_{uid})
-        @SP
-        A=M-1
-        M=-1
-        (END_COMPARISON_{uid})
-        """
-    )
-
-
-def emit_load_constant(val: int) -> str:
-    return f"""
-    @{val}
-    D=A
-    """
-
-
-def emit_load_from_pointer_offset(ptr: int, offset: int) -> str:
-    return f"""
-    @{offset}
-    D=A
-    @{ptr}
-    A=D+M
-    D=M
-    """
-
-
-def emit_load_from_addr(addr: int) -> str:
-    return f"""
-    @{addr}
-    D=M
-    """
-
-
-def emit_load_from_segment(segment: str, val: int, module_name: str) -> str:
-    match segment:
-        case "argument":
-            return emit_load_from_pointer_offset(ARG, val)
-        case "local":
-            return emit_load_from_pointer_offset(LCL, val)
-        case "static":
-            return emit_load_from_addr(get_static_var_label(module_name, val))
-        case "constant":
-            return emit_load_constant(val)
-        case "this":
-            return emit_load_from_pointer_offset(THIS, val)
-        case "that":
-            return emit_load_from_pointer_offset(THAT, val)
-        case "pointer":
-            return emit_load_from_addr(THIS + val)
-        case "temp":
-            return emit_load_from_addr(TEMP + val)
-        case _:
-            raise ValueError(f"unrecognized segment = {segment}")
-
-
-def emit_save_to_pointer_offset(ptr: int, offset: int) -> str:
-    return (
+    def emit_save_to_pointer_offset(self, ptr: int, offset: int):
+        """RAM[RAM[ptr] + offset] = D"""
         # R13 = D
-        """
-        @R13
-        M=D
-        """
+        self.emit("@R13")
+        self.emit("M=D")
+
         # R14 = RAM[ptr] + offset
-        f"""
-        @{offset}
-        D=A
-        @{ptr}
-        D=D+M
-        @R14
-        M=D
-        """
+        self.emit(f"@{offset}")
+        self.emit("D=A")
+        self.emit(f"@{ptr}")
+        self.emit("D=D+M")
+        self.emit("@R14")
+        self.emit("M=D")
+
         # RAM[R14] = R13
-        """
-        @R13
-        D=M
-        @R14
-        A=M
-        M=D
-        """
-    )
+        self.emit("@R13")
+        self.emit("D=M")
+        self.emit("@R14")
+        self.emit("A=M")
+        self.emit("M=D")
 
+    ########################
+    #### STACK PUSH/POP ####
+    ########################
+    def emit_stack_push(self):
+        self.emit_save_to_pointer(SP)
+        self.emit("@SP")
+        self.emit("M=M+1")
 
-def emit_save_to_addr(addr: int) -> str:
-    return f"""
-    @{addr}
-    M=D
-    """
+    def emit_stack_pop(self):
+        self.emit("@SP")
+        self.emit("AM=M-1")
+        self.emit("D=M")
 
+    ##############################
+    #### ARITHMETIC/LOGIC OPS ####
+    ##############################
+    def emit_unary_op(self, op: str):
+        op = {"not": "!", "neg": "-"}[op]
+        self.emit("@SP")
+        self.emit("A=M-1")
+        self.emit(f"M={op}M")
 
-def emit_save_to_segment(segment: str, val: int, module_name: str) -> str:
-    match segment:
-        case "argument":
-            return emit_save_to_pointer_offset(ARG, val)
-        case "local":
-            return emit_save_to_pointer_offset(LCL, val)
-        case "static":
-            return emit_save_to_addr(get_static_var_label(module_name, val))
-        case "constant":
-            raise ValueError("pop constant is not supported")
-        case "this":
-            return emit_save_to_pointer_offset(THIS, val)
-        case "that":
-            return emit_save_to_pointer_offset(THAT, val)
-        case "pointer":
-            return emit_save_to_addr(THIS + val)
-        case "temp":
-            return emit_save_to_addr(TEMP + val)
-        case _:
-            raise ValueError(f"unrecognized segment = {segment}")
+    def emit_binary_op(self, op: str):
+        op = {"add": "D+M", "sub": "M-D", "and": "D&M", "or": "D|M"}[op]
+        self.emit_stack_pop()
+        self.emit("@SP")
+        self.emit("A=M-1")
+        self.emit(f"M={op}")
 
+    def emit_cmp_op(self, op: str):
+        op = {"eq": "JEQ", "gt": "JGT", "lt": "JLT"}[op]
+        uid = self.get_unique_label_id()
+        true_branch_label = f"TRUE_BRANCH_{uid}"
+        end_comparison_label = f"END_COMPARISON_{uid}"
 
-def emit_label(label: str) -> str:
-    return f"""
-    ({label})
-    """
+        # D = head - stack.pop()
+        self.emit_stack_pop()
+        self.emit("@SP")
+        self.emit("A=M-1")
+        self.emit("D=M-D")
 
+        # check condition
+        self.emit(f"@{true_branch_label}")
+        self.emit(f"D;{op}")
 
-def emit_goto_label(label: str) -> str:
-    return f"""
-    @{label}
-    0;JMP
-    """
+        # if condition did not trigger, set head=false=0
+        self.emit("@SP")
+        self.emit("A=M-1")
+        self.emit("M=0")
+        self.emit_goto_label(end_comparison_label)
 
+        # if condition triggered, set head=true=-1
+        self.emit_label(true_branch_label)
+        self.emit("@SP")
+        self.emit("A=M-1")
+        self.emit("M=-1")
+        self.emit_label(end_comparison_label)
 
-def emit_if_goto_label(label: str) -> str:
-    return f"""
-    {emit_stack_pop()}
-    @{label}
-    D;JNE
-    """
+    ###########################
+    #### LOAD FROM SEGMENT ####
+    ###########################
+    def emit_load_from_segment(self, segment: str, val: int, module_name: str):
+        match segment:
+            case "argument":
+                self.emit_load_from_pointer_offset(ARG, val)
+            case "local":
+                self.emit_load_from_pointer_offset(LCL, val)
+            case "static":
+                self.emit_load_from_addr(self.get_static_var_label(module_name, val))
+            case "constant":
+                self.emit_load_constant(val)
+            case "this":
+                self.emit_load_from_pointer_offset(THIS, val)
+            case "that":
+                self.emit_load_from_pointer_offset(THAT, val)
+            case "pointer":
+                self.emit_load_from_addr(THIS + val)
+            case "temp":
+                self.emit_load_from_addr(TEMP + val)
+            case _:
+                raise ValueError(f"unrecognized segment = {segment}")
 
+    #########################
+    #### SAVE TO SEGMENT ####
+    #########################
+    def emit_save_to_segment(self, segment: str, val: int, module_name: str):
+        match segment:
+            case "argument":
+                self.emit_save_to_pointer_offset(ARG, val)
+            case "local":
+                self.emit_save_to_pointer_offset(LCL, val)
+            case "static":
+                self.emit_save_to_addr(self.get_static_var_label(module_name, val))
+            case "constant":
+                raise ValueError("pop constant is not supported")
+            case "this":
+                self.emit_save_to_pointer_offset(THIS, val)
+            case "that":
+                self.emit_save_to_pointer_offset(THAT, val)
+            case "pointer":
+                self.emit_save_to_addr(THIS + val)
+            case "temp":
+                self.emit_save_to_addr(TEMP + val)
+            case _:
+                raise ValueError(f"unrecognized segment = {segment}")
 
-def translate_line(line: str, module_name: str) -> str:
-    op, *args = line.split()
-    match op:
-        case "neg" | "not":
-            return emit_unary_op(op)
-        case "add" | "sub" | "and" | "or":
-            return emit_binary_op(op)
-        case "eq" | "gt" | "lt":
-            return emit_cmp_op(op)
-        case "push":
-            segment, val = args[0], int(args[1])
-            return f"""
-            {emit_load_from_segment(segment, val, module_name)}
-            {emit_stack_push()}
-            """
-        case "pop":
-            segment, val = args[0], int(args[1])
-            return f"""
-            {emit_stack_pop()}
-            {emit_save_to_segment(segment, val, module_name)}
-            """
-        case "label":
-            label = args[0]
-            return emit_label(label)
-        case "goto":
-            label = args[0]
-            return emit_goto_label(label)
-        case "if-goto":
-            label = args[0]
-            return emit_if_goto_label(label)
-        case "function":
-            name, nlocals = args[0], int(args[1])
-            raise NotImplementedError
-        case "call":
-            name, nargs = args[0], int(args[1])
-            raise NotImplementedError
-        case "return":
-            raise NotImplementedError
-        case _:
-            raise ValueError(f"unrecognized op = {op}")
+    ######################
+    #### PROGRAM FLOW ####
+    ######################
+    def emit_label(self, label: str):
+        self.emit(f"({label})")
 
+    def emit_goto_label(self, label: str):
+        self.emit(f"@{label}")
+        self.emit("0;JMP")
 
-def translate_file(file: str):
-    assembly = ""
-    for line in open(file):
-        if line := line.split("//", 1)[0].strip():
-            assembly += translate_line(line, module_name=os.path.basename(file))
-    return assembly
+    def emit_if_goto_label(self, label: str):
+        self.emit_stack_pop()
+        self.emit(f"@{label}")
+        self.emit("D;JNE")
+
+    #####################
+    #### EMIT OPCODE ####
+    #####################
+    def emit_op(self, line: str, module_name: str):
+        op, *args = line.split()
+        match op:
+            case "neg" | "not":
+                self.emit_unary_op(op)
+            case "add" | "sub" | "and" | "or":
+                self.emit_binary_op(op)
+            case "eq" | "gt" | "lt":
+                self.emit_cmp_op(op)
+            case "push":
+                segment, val = args[0], int(args[1])
+                self.emit_load_from_segment(segment, val, module_name)
+                self.emit_stack_push()
+            case "pop":
+                segment, val = args[0], int(args[1])
+                self.emit_stack_pop()
+                self.emit_save_to_segment(segment, val, module_name)
+            case "label":
+                label = args[0]
+                self.emit_label(label)
+            case "goto":
+                label = args[0]
+                self.emit_goto_label(label)
+            case "if-goto":
+                label = args[0]
+                self.emit_if_goto_label(label)
+            case "function":
+                name, nlocals = args[0], int(args[1])
+                raise NotImplementedError
+            case "call":
+                name, nargs = args[0], int(args[1])
+                raise NotImplementedError
+            case "return":
+                raise NotImplementedError
+            case _:
+                raise ValueError(f"unrecognized op = {op}")
 
 
 def translate(path: str):
-    # get files to translate
     files = glob.glob(os.path.join(path, "*.vm")) if os.path.isdir(path) else [path]
 
-    # init assembly code
-    assembly = ""
-    assembly += emit_init_stack_pointer()
-
-    # if we are translating a directory and not an individual file, we goto Sys.init
-    # which will be our entrypoint (otherwise, the entrypoint is simply the first
-    # command of the file we are translating)
-    assembly += emit_goto_label("Sys.init") if os.path.isdir(path) else ""
-
-    # get assembly translation for each file
+    translator = Translator(goto_sys_init=os.path.isdir(path))
     for file in files:
-        assembly += translate_file(file)
+        for line in open(file):
+            if line := line.split("//", 1)[0].strip():
+                translator.emit_op(line, module_name=os.path.basename(file))
 
-    # strip trailing/leading whitespace for each line and remove any empty lines
-    assembly = "\n".join(filter(bool, map(lambda s: s.strip(), assembly.splitlines())))
-
-    return assembly
+    return translator.assembly
 
 
 if __name__ == "__main__":

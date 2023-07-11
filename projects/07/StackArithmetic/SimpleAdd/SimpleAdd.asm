@@ -1,17 +1,17 @@
 @256
 D=A
-@SP
+@0
 M=D
 @7
 D=A
-@SP
+@0
 A=M
 M=D
 @SP
 M=M+1
 @8
 D=A
-@SP
+@0
 A=M
 M=D
 @SP
@@ -22,3 +22,4 @@ D=M
 @SP
 A=M-1
 M=D+M
+

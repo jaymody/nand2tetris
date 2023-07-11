@@ -1,10 +1,10 @@
 @256
 D=A
-@SP
+@0
 M=D
 @10
 D=A
-@SP
+@0
 A=M
 M=D
 @SP
@@ -27,14 +27,14 @@ A=M
 M=D
 @21
 D=A
-@SP
+@0
 A=M
 M=D
 @SP
 M=M+1
 @22
 D=A
-@SP
+@0
 A=M
 M=D
 @SP
@@ -73,7 +73,7 @@ A=M
 M=D
 @36
 D=A
-@SP
+@0
 A=M
 M=D
 @SP
@@ -96,14 +96,14 @@ A=M
 M=D
 @42
 D=A
-@SP
+@0
 A=M
 M=D
 @SP
 M=M+1
 @45
 D=A
-@SP
+@0
 A=M
 M=D
 @SP
@@ -142,7 +142,7 @@ A=M
 M=D
 @510
 D=A
-@SP
+@0
 A=M
 M=D
 @SP
@@ -157,7 +157,7 @@ D=A
 @1
 A=D+M
 D=M
-@SP
+@0
 A=M
 M=D
 @SP
@@ -167,7 +167,7 @@ D=A
 @4
 A=D+M
 D=M
-@SP
+@0
 A=M
 M=D
 @SP
@@ -183,7 +183,7 @@ D=A
 @2
 A=D+M
 D=M
-@SP
+@0
 A=M
 M=D
 @SP
@@ -199,7 +199,7 @@ D=A
 @3
 A=D+M
 D=M
-@SP
+@0
 A=M
 M=D
 @SP
@@ -209,7 +209,7 @@ D=A
 @3
 A=D+M
 D=M
-@SP
+@0
 A=M
 M=D
 @SP
@@ -228,7 +228,7 @@ A=M-1
 M=M-D
 @11
 D=M
-@SP
+@0
 A=M
 M=D
 @SP
@@ -239,3 +239,4 @@ D=M
 @SP
 A=M-1
 M=D+M
+
