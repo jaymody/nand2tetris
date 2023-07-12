@@ -107,7 +107,7 @@ class Translator:
         &head += 1
         """
         self.emit_save_to_pointer(SP)
-        self.emit("@SP")
+        self.emit(f"@{SP}")
         self.emit("M=M+1")
 
     def emit_stack_pop(self):
@@ -115,7 +115,7 @@ class Translator:
         &head -= 1
         D = head
         """
-        self.emit("@SP")
+        self.emit(f"@{SP}")
         self.emit("AM=M-1")
         self.emit("D=M")
 
@@ -129,7 +129,7 @@ class Translator:
         """
 
         op = {"not": "!", "neg": "-"}[op]
-        self.emit("@SP")
+        self.emit(f"@{SP}")
         self.emit("A=M-1")
         self.emit(f"M={op}M")
 
@@ -142,7 +142,7 @@ class Translator:
 
         op = {"add": "D+M", "sub": "M-D", "and": "D&M", "or": "D|M"}[op]
         self.emit_stack_pop()
-        self.emit("@SP")
+        self.emit(f"@{SP}")
         self.emit("A=M-1")
         self.emit(f"M={op}")
 
@@ -167,7 +167,7 @@ class Translator:
 
         # D = head - stack.pop()
         self.emit_stack_pop()
-        self.emit("@SP")
+        self.emit(f"@{SP}")
         self.emit("A=M-1")
         self.emit("D=M-D")
 
@@ -176,14 +176,14 @@ class Translator:
         self.emit(f"D;{op}")
 
         # if condition did not trigger, set head=false=0
-        self.emit("@SP")
+        self.emit(f"@{SP}")
         self.emit("A=M-1")
         self.emit("M=0")
         self.emit_goto_label(end_comparison_label)
 
         # if condition triggered, set head=true=-1
         self.emit_label(true_branch_label)
-        self.emit("@SP")
+        self.emit(f"@{SP}")
         self.emit("A=M-1")
         self.emit("M=-1")
         self.emit_label(end_comparison_label)
