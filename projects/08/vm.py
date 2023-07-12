@@ -258,6 +258,173 @@ class Translator:
         self.emit(f"@{label}")
         self.emit("D;JNE")
 
+    ###################
+    #### FUNCTIONS ####
+    ###################
+    def emit_function(self, name, nlocals):
+        """The logic is as follows:
+
+        1) Emit the label to indicate the entrypoint for the function.
+        2) Initialize the local memory segment for the function by pushing 0 to the
+           stack nlocals times.
+
+        Before the function code executes the stack should look something like this:
+
+        &arg -------------> arg[0]
+                            arg[1]
+                            ...
+                            arg[nargs]
+                            parent return addr
+                            parent &local
+                            parent &arg
+                            parent &this
+                            parent &that
+        &local &head ----->
+
+        After the function is called the stack should look something like this:
+
+        &arg -------------> arg[0]
+                            arg[1]
+                            ...
+                            arg[nargs]
+                            parent return addr
+                            parent &local
+                            parent &arg
+                            parent &this
+                            parent &that
+        &local -----------> local[0] = 0
+                            local[1] = 0
+                            ...
+                            local[nlocals] = 0
+        &head ------------>
+        """
+        self.emit_label(name)
+        for _ in range(nlocals):
+            self.emit_load_constant(0)
+            self.emit_stack_push()
+
+    def emit_call(self, name, nargs):
+        raise NotImplementedError
+
+    def emit_return(self):
+        """The logic is as follows:
+
+        1) Save &local and the return address to a register:
+
+            FRAME = &local
+            RET   = RAM[FRAME - 5]
+
+        2) We return the stack head to where it was before we called the current
+           function (which would be where &arg is pointing), but with the return value
+           pushed onto the stack:
+
+            arg[0] = pop()
+            &head  = &arg + 1
+
+        3) Restore &local, &arg, &this, &that:
+
+            &that  =  RAM[FRAME - 1]
+            &this  =  RAM[FRAME - 2]
+            &arg   =  RAM[FRAME - 3]
+            &local =  RAM[FRAME - 4]
+
+        4) Finally, we continue execution of the parent function via the return address:
+
+            goto RET
+
+
+        Two quick notes:
+
+            a) Why do we store &local in a temp register FRAME? Can't
+               we just use it directly, since &local is the last thing
+               we restore?
+
+                    Yeah, I guess you could, but this is more readable
+                    and clear.
+
+            b) Why do we store the return address in a temp register RET?
+               Can't we just do 'goto FRAME - 5' at the very end?
+
+                    No. The problem is if nargs is 0, then args[0]
+                    and FRAME - 5 point to the same location. So,
+                    in step 2, when we run arg[0] = pop(), we'd be
+                    overwriting the return address.
+
+
+
+        Before the return code executes, the stack should look like this:
+
+                            ...
+        &arg -------------> arg[0]
+                            arg[1]
+                            ...
+                            arg[nargs]
+                            parent return addr
+                            parent &local
+                            parent &arg
+                            parent &this
+                            parent &that
+        &local -----------> local[0] = 0
+                            local[1] = 0
+                            ...
+                            local[nlocals] = 0
+                            <some value>
+                            <some value>
+                            ...
+                            <some value>
+                            value to return
+        &head ------------>
+
+
+        Afterwards, it should look something like this:
+
+                            ...
+        &head ------------> value to return
+
+        &head is pointing to where arg[0] used to be. &local, &arg, &this, &that, are
+        restored to that of the parent, and the program jumps to the parent return
+        address.
+        """
+        FRAME = 13  # temp register 13
+        RET = 14  # temp register 14
+
+        # 1) Save stack frame and parent return addr to temp registers.
+        # FRAME = &local
+        self.emit_load_from_addr(LCL)
+        self.emit_save_to_addr(FRAME)
+
+        # RET = &local - 5
+        self.emit_load_from_pointer(FRAME, -5)
+        self.emit_save_to_addr(RET)
+
+        # 2) Reset stack head to parent with the return value pushed onto the stack.
+        # arg[0] = pop()
+        self.emit_stack_pop()
+        self.emit_save_to_pointer(ARG)
+
+        # &head  = &arg + 1
+        self.emit_load_from_addr(ARG)
+        self.emit("D=D+1")
+        self.emit_save_to_addr(SP)
+
+        # 3) Restore &local, &arg, &this, &that.
+        self.emit_load_from_pointer(FRAME, -1)
+        self.emit_save_to_addr(THAT)
+
+        self.emit_load_from_pointer(FRAME, -2)
+        self.emit_save_to_addr(THIS)
+
+        self.emit_load_from_pointer(FRAME, -3)
+        self.emit_save_to_addr(ARG)
+
+        self.emit_load_from_pointer(FRAME, -4)
+        self.emit_save_to_addr(LCL)
+
+        # 4) Goto RET
+        self.emit(f"@{RET}")
+        self.emit("A=M")
+        self.emit("0;JMP")
+
     #####################
     #### EMIT OPCODE ####
     #####################
@@ -289,12 +456,12 @@ class Translator:
                 self.emit_if_goto_label(label)
             case "function":
                 name, nlocals = args[0], int(args[1])
-                raise NotImplementedError
+                return self.emit_function(name, nlocals)
             case "call":
                 name, nargs = args[0], int(args[1])
-                raise NotImplementedError
+                return self.emit_call(name, nargs)
             case "return":
-                raise NotImplementedError
+                return self.emit_return()
             case _:
                 raise ValueError(f"unrecognized op = {op}")
 
