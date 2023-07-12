@@ -304,7 +304,76 @@ class Translator:
             self.emit_stack_push()
 
     def emit_call(self, name, nargs):
-        raise NotImplementedError
+        """The logic is as follows:
+
+        1) Push the return addr, &local, &arg, &this, and &that to the stack.
+
+        2) Set the pointers &local and &arg to point to their new locations:
+
+            &local = &head
+            &arg   = &head - 5 - nargs
+
+        3) Goto name (i.e. call the function).
+
+        4) Emit the return address label to indicate where we should continue executing
+           from after the child function returns.
+
+
+        Before the emit call code is executed, the stack looks like this:
+
+                            ...
+                            arg[0]
+                            arg[1]
+                            ...
+                            arg[nargs]
+        &head ------------>
+
+        After the emit call code is executed, the stack looks like this:
+
+                            ...
+        &arg -------------> arg[0]
+                            arg[1]
+                            ...
+                            arg[nargs]
+                            return addr
+                            &local of this function
+                            &arg of this function
+                            &this of this function
+                            &that of this function
+        &local &head ----->
+
+        """
+        return_label = f"RETURN_LABEL_{self.get_unique_label_id()}"
+
+        # 1) Push the return addr, &local, &arg, &this, and &that to the stack.
+        self.emit(f"@{return_label}")
+        self.emit("D=A")
+        self.emit_stack_push()
+
+        self.emit_load_from_addr(LCL)
+        self.emit_stack_push()
+
+        self.emit_load_from_addr(ARG)
+        self.emit_stack_push()
+
+        self.emit_load_from_addr(THIS)
+        self.emit_stack_push()
+
+        self.emit_load_from_addr(THAT)
+        self.emit_stack_push()
+
+        # 2) Set the pointers &local and &arg to point to their new locations.
+        self.emit_load_from_pointer(SP)
+        self.emit_save_to_addr(LCL)
+
+        self.emit_load_from_pointer(SP, -nargs - 5)
+        self.emit_save_to_addr(ARG)
+
+        # 3) Call the function.
+        self.emit_goto_label(name)
+
+        # 4) Emit return label.
+        self.emit_label(return_label)
 
     def emit_return(self):
         """The logic is as follows:
@@ -421,8 +490,8 @@ class Translator:
         self.emit_save_to_addr(LCL)
 
         # 4) Goto RET
-        self.emit(f"@{RET}")
-        self.emit("A=M")
+        self.emit_load_from_addr(RET)
+        self.emit("A=D")
         self.emit("0;JMP")
 
     #####################
