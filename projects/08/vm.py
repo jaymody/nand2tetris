@@ -52,20 +52,18 @@ class Translator:
         self.emit(f"@{addr}")
         self.emit("D=M")
 
-    def emit_load_from_pointer(self, ptr: int):
-        """D = RAM[RAM[ptr]]"""
-
-        self.emit(f"@{ptr}")
-        self.emit("A=M")
-        self.emit("D=M")
-
-    def emit_load_from_pointer_offset(self, ptr: int, offset: int):
+    def emit_load_from_pointer(self, ptr: int, offset: int = 0):
         """D = RAM[RAM[ptr] + offset]"""
 
-        self.emit_load_constant(offset)
-        self.emit(f"@{ptr}")
-        self.emit("A=D+M")
-        self.emit("D=M")
+        if offset == 0:
+            self.emit(f"@{ptr}")
+            self.emit("A=M")
+            self.emit("D=M")
+        else:
+            self.emit_load_constant(abs(offset))
+            self.emit(f"@{ptr}")
+            self.emit("A=D+M" if offset > 0 else "A=M-D")
+            self.emit("D=M")
 
     ############################
     #### SAVE D INTO MEMORY ####
@@ -76,34 +74,29 @@ class Translator:
         self.emit(f"@{addr}")
         self.emit("M=D")
 
-    def emit_save_to_pointer(self, ptr: int):
-        """RAM[RAM[ptr]] = D"""
-
-        self.emit(f"@{ptr}")
-        self.emit("A=M")
-        self.emit("M=D")
-
-    def emit_save_to_pointer_offset(self, ptr: int, offset: int):
+    def emit_save_to_pointer(self, ptr: int, offset: int = 0):
         """RAM[RAM[ptr] + offset] = D"""
 
-        # R13 = D
-        self.emit("@R13")
-        self.emit("M=D")
+        if offset == 0:
+            self.emit(f"@{ptr}")
+            self.emit("A=M")
+            self.emit("M=D")
+        else:
+            VAL = 13  # temp register 13
+            ADDR = 14  # temp register 14
 
-        # R14 = RAM[ptr] + offset
-        self.emit(f"@{offset}")
-        self.emit("D=A")
-        self.emit(f"@{ptr}")
-        self.emit("D=D+M")
-        self.emit("@R14")
-        self.emit("M=D")
+            # VAL = D
+            self.emit_save_to_addr(VAL)
 
-        # RAM[R14] = R13
-        self.emit("@R13")
-        self.emit("D=M")
-        self.emit("@R14")
-        self.emit("A=M")
-        self.emit("M=D")
+            # ADDR = RAM[ptr] + offset
+            self.emit_load_constant(abs(offset))
+            self.emit(f"@{ptr}")
+            self.emit("D=D+M" if offset > 0 else "D=M-D")
+            self.emit_save_to_addr(ADDR)
+
+            # RAM[ADDR] = VAL
+            self.emit_load_from_addr(VAL)
+            self.emit_save_to_pointer(ADDR)
 
     ########################
     #### STACK PUSH/POP ####
@@ -203,17 +196,17 @@ class Translator:
 
         match segment:
             case "argument":
-                self.emit_load_from_pointer_offset(ARG, val)
+                self.emit_load_from_pointer(ARG, val)
             case "local":
-                self.emit_load_from_pointer_offset(LCL, val)
+                self.emit_load_from_pointer(LCL, val)
             case "static":
                 self.emit_load_from_addr(self.get_static_var_label(module_name, val))
             case "constant":
                 self.emit_load_constant(val)
             case "this":
-                self.emit_load_from_pointer_offset(THIS, val)
+                self.emit_load_from_pointer(THIS, val)
             case "that":
-                self.emit_load_from_pointer_offset(THAT, val)
+                self.emit_load_from_pointer(THAT, val)
             case "pointer":
                 self.emit_load_from_addr(THIS + val)
             case "temp":
@@ -229,17 +222,17 @@ class Translator:
 
         match segment:
             case "argument":
-                self.emit_save_to_pointer_offset(ARG, val)
+                self.emit_save_to_pointer(ARG, val)
             case "local":
-                self.emit_save_to_pointer_offset(LCL, val)
+                self.emit_save_to_pointer(LCL, val)
             case "static":
                 self.emit_save_to_addr(self.get_static_var_label(module_name, val))
             case "constant":
                 raise ValueError("pop constant is not supported")
             case "this":
-                self.emit_save_to_pointer_offset(THIS, val)
+                self.emit_save_to_pointer(THIS, val)
             case "that":
-                self.emit_save_to_pointer_offset(THAT, val)
+                self.emit_save_to_pointer(THAT, val)
             case "pointer":
                 self.emit_save_to_addr(THIS + val)
             case "temp":
