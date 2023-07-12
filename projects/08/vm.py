@@ -15,16 +15,18 @@ class Translator:
     ################
     #### BASICS ####
     ################
-    def __init__(self, goto_sys_init: bool):
+    def __init__(self, call_sys_init: bool):
         self.label_id = 0
         self.assembly = ""
 
         # initialize stack pointer
+        self.emit("\n// init stack pointer")
         self.emit_load_constant(256)
         self.emit_save_to_addr(SP)
 
-        if goto_sys_init:
-            self.emit_goto_label("Sys.init")
+        if call_sys_init:
+            self.emit("\n// call Sys.init")
+            self.emit_call("Sys.init", 0)
 
     def get_unique_label_id(self) -> int:
         self.label_id += 1
@@ -363,10 +365,12 @@ class Translator:
         self.emit_stack_push()
 
         # 2) Set the pointers &local and &arg to point to their new locations.
-        self.emit_load_from_pointer(SP)
+        self.emit_load_from_addr(SP)
         self.emit_save_to_addr(LCL)
 
-        self.emit_load_from_pointer(SP, -nargs - 5)
+        self.emit_load_constant(nargs + 5)
+        self.emit(f"@{SP}")
+        self.emit("D=M-D")
         self.emit_save_to_addr(ARG)
 
         # 3) Call the function.
@@ -538,11 +542,13 @@ class Translator:
 def translate(path: str):
     files = glob.glob(os.path.join(path, "*.vm")) if os.path.isdir(path) else [path]
 
-    translator = Translator(goto_sys_init=os.path.isdir(path))
+    translator = Translator(call_sys_init=os.path.isdir(path))
     for file in files:
-        for line in open(file):
+        for line_num, line in enumerate(open(file)):
             if line := line.split("//", 1)[0].strip():
-                translator.emit_op(line, module_name=os.path.basename(file))
+                module_name = os.path.basename(file)
+                translator.emit(f"\n// {module_name} @ {line_num}: {line} ")
+                translator.emit_op(line, module_name)
 
     return translator.assembly
 
