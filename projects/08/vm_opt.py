@@ -110,9 +110,10 @@ class Translator:
         head   = D
         &head += 1
         """
-        self.emit_save_to_pointer(SP)
         self.emit(f"@{SP}")
-        self.emit("M=M+1")
+        self.emit("AM=M+1")
+        self.emit("A=A-1")
+        self.emit("M=D")
 
     def emit_stack_pop(self):
         """
