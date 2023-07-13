@@ -266,46 +266,14 @@ class Translator:
     #### FUNCTIONS ####
     ###################
     def emit_function(self, name, nlocals):
-        """The logic is as follows:
-
-        1) Emit the label to indicate the entrypoint for the function.
-        2) Initialize the local memory segment for the function by pushing 0 to the
-           stack nlocals times.
-
-        Before the function code executes the stack should look something like this:
-
-        &arg -------------> arg[0]
-                            arg[1]
-                            ...
-                            arg[nargs]
-                            parent return addr
-                            parent &local
-                            parent &arg
-                            parent &this
-                            parent &that
-        &local &head ----->
-
-        After the function is called the stack should look something like this:
-
-        &arg -------------> arg[0]
-                            arg[1]
-                            ...
-                            arg[nargs]
-                            parent return addr
-                            parent &local
-                            parent &arg
-                            parent &this
-                            parent &that
-        &local -----------> local[0] = 0
-                            local[1] = 0
-                            ...
-                            local[nlocals] = 0
-        &head ------------>
-        """
         self.emit_label(name)
+        self.emit("@{SP}")
+        self.emit("AD=M")
         for _ in range(nlocals):
-            self.emit_load_constant(0)
-            self.emit_stack_push()
+            self.emit("M=0")
+            self.emit("AD=A+1")
+        self.emit("@{SP}")
+        self.emit("M=D")
 
     def emit_call(self, name, nargs):
         """The logic is as follows:
