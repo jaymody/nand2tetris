@@ -267,87 +267,12 @@ class Translator:
     #### FUNCTIONS ####
     ###################
     def emit_function(self, name, nlocals):
-        """The logic is as follows:
-
-        1) Emit the label to indicate the entrypoint for the function.
-        2) Initialize the local memory segment for the function by pushing 0 to the
-           stack nlocals times.
-
-        Before the function code executes the stack should look something like this:
-
-        &arg -------------> arg[0]
-                            arg[1]
-                            ...
-                            arg[nargs]
-                            parent return addr
-                            parent &local
-                            parent &arg
-                            parent &this
-                            parent &that
-        &local &head ----->
-
-        After the function is called the stack should look something like this:
-
-        &arg -------------> arg[0]
-                            arg[1]
-                            ...
-                            arg[nargs]
-                            parent return addr
-                            parent &local
-                            parent &arg
-                            parent &this
-                            parent &that
-        &local -----------> local[0] = 0
-                            local[1] = 0
-                            ...
-                            local[nlocals] = 0
-        &head ------------>
-        """
         self.emit_label(name)
         for _ in range(nlocals):
             self.emit_load_constant(0)
             self.emit_stack_push()
 
     def emit_call(self, name, nargs):
-        """The logic is as follows:
-
-        1) Push the return addr, &local, &arg, &this, and &that to the stack.
-
-        2) Set the pointers &local and &arg to point to their new locations:
-
-            &local = &head
-            &arg   = &head - 5 - nargs
-
-        3) Goto name (i.e. call the function).
-
-        4) Emit the return address label to indicate where we should continue executing
-           from after the child function returns.
-
-
-        Before the emit call code is executed, the stack looks like this:
-
-                            ...
-                            arg[0]
-                            arg[1]
-                            ...
-                            arg[nargs]
-        &head ------------>
-
-        After the emit call code is executed, the stack looks like this:
-
-                            ...
-        &arg -------------> arg[0]
-                            arg[1]
-                            ...
-                            arg[nargs]
-                            return addr
-                            &local of this function
-                            &arg of this function
-                            &this of this function
-                            &that of this function
-        &local &head ----->
-
-        """
         return_label = f"RETURN_LABEL_{self.get_unique_label_id()}"
 
         # 1) Push the return addr, &local, &arg, &this, and &that to the stack.
@@ -383,84 +308,6 @@ class Translator:
         self.emit_label(return_label)
 
     def emit_return(self):
-        """The logic is as follows:
-
-        1) Save &local and the return address to a register:
-
-            FRAME = &local
-            RET   = RAM[FRAME - 5]
-
-        2) We return the stack head to where it was before we called the current
-           function (which would be where &arg is pointing), but with the return value
-           pushed onto the stack:
-
-            arg[0] = pop()
-            &head  = &arg + 1
-
-        3) Restore &local, &arg, &this, &that:
-
-            &that  =  RAM[FRAME - 1]
-            &this  =  RAM[FRAME - 2]
-            &arg   =  RAM[FRAME - 3]
-            &local =  RAM[FRAME - 4]
-
-        4) Finally, we continue execution of the parent function via the return address:
-
-            goto RET
-
-
-        Two quick notes:
-
-            a) Why do we store &local in a temp register FRAME? Can't
-               we just use it directly, since &local is the last thing
-               we restore?
-
-                    Yeah, I guess you could, but this is more readable
-                    and clear.
-
-            b) Why do we store the return address in a temp register RET?
-               Can't we just do 'goto FRAME - 5' at the very end?
-
-                    No. The problem is if nargs is 0, then args[0]
-                    and FRAME - 5 point to the same location. So,
-                    in step 2, when we run arg[0] = pop(), we'd be
-                    overwriting the return address.
-
-
-
-        Before the return code executes, the stack should look like this:
-
-                            ...
-        &arg -------------> arg[0]
-                            arg[1]
-                            ...
-                            arg[nargs]
-                            parent return addr
-                            parent &local
-                            parent &arg
-                            parent &this
-                            parent &that
-        &local -----------> local[0] = 0
-                            local[1] = 0
-                            ...
-                            local[nlocals] = 0
-                            <some value>
-                            <some value>
-                            ...
-                            <some value>
-                            value to return
-        &head ------------>
-
-
-        Afterwards, it should look something like this:
-
-                            ...
-        &head ------------> value to return
-
-        &head is pointing to where arg[0] used to be. &local, &arg, &this, &that, are
-        restored to that of the parent, and the program jumps to the parent return
-        address.
-        """
         FRAME = 13  # temp register 13
         RET = 14  # temp register 14
 
