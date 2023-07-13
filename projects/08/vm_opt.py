@@ -267,12 +267,12 @@ class Translator:
     ###################
     def emit_function(self, name, nlocals):
         self.emit_label(name)
-        self.emit("@{SP}")
+        self.emit(f"@{SP}")
         self.emit("AD=M")
         for _ in range(nlocals):
             self.emit("M=0")
             self.emit("AD=A+1")
-        self.emit("@{SP}")
+        self.emit(f"@{SP}")
         self.emit("M=D")
 
     def emit_call(self, name, nargs):
@@ -432,36 +432,58 @@ class Translator:
         RET = 14  # temp register 14
 
         # 1) Save stack frame and parent return addr to temp registers.
-        # FRAME = &local
-        self.emit_load_from_addr(LCL)
-        self.emit_save_to_addr(FRAME)
+        self.emit(f"@{LCL}")
+        self.emit("D=M")
 
-        # RET = &local - 5
-        self.emit_load_from_pointer(FRAME, -5)
-        self.emit_save_to_addr(RET)
+        self.emit(f"@{FRAME}")
+        self.emit("M=D")
+
+        self.emit("@5")
+        self.emit("A=D-A")
+        self.emit("D=M")
+
+        self.emit(f"@{RET}")
+        self.emit("M=D")
 
         # 2) Reset stack head to parent with the return value pushed onto the stack.
-        # arg[0] = pop()
-        self.emit_stack_pop()
-        self.emit_save_to_pointer(ARG)
+        self.emit(f"@{SP}")
+        self.emit("A=M-1")
+        self.emit("D=M")
 
-        # &head  = &arg + 1
-        self.emit_load_from_addr(ARG)
-        self.emit("D=D+1")
-        self.emit_save_to_addr(SP)
+        self.emit(f"@{ARG}")
+        self.emit("A=M")
+        self.emit("M=D")
+
+        self.emit(f"@{ARG}")
+        self.emit("D=M+1")
+
+        self.emit(f"@{SP}")
+        self.emit("M=D")
 
         # 3) Restore &local, &arg, &this, &that.
-        self.emit_load_from_pointer(FRAME, -1)
-        self.emit_save_to_addr(THAT)
+        self.emit(f"@{FRAME}")
+        self.emit("AM=M-1")
+        self.emit("D=M")
+        self.emit(f"@{THAT}")
+        self.emit("M=D")
 
-        self.emit_load_from_pointer(FRAME, -2)
-        self.emit_save_to_addr(THIS)
+        self.emit(f"@{FRAME}")
+        self.emit("AM=M-1")
+        self.emit("D=M")
+        self.emit(f"@{THIS}")
+        self.emit("M=D")
 
-        self.emit_load_from_pointer(FRAME, -3)
-        self.emit_save_to_addr(ARG)
+        self.emit(f"@{FRAME}")
+        self.emit("AM=M-1")
+        self.emit("D=M")
+        self.emit(f"@{ARG}")
+        self.emit("M=D")
 
-        self.emit_load_from_pointer(FRAME, -4)
-        self.emit_save_to_addr(LCL)
+        self.emit(f"@{FRAME}")
+        self.emit("AM=M-1")
+        self.emit("D=M")
+        self.emit(f"@{LCL}")
+        self.emit("M=D")
 
         # 4) Goto RET
         self.emit_load_from_addr(RET)
