@@ -68,9 +68,11 @@ class Translator:
     def emit_load_from_pointer(self, ptr: int, offset: int = 0):
         """D = RAM[RAM[ptr] + offset]"""
 
-        if offset == 0:
+        if abs(offset) <= 2:
             self.emit(f"@{ptr}")
-            self.emit("A=M")
+            self.emit("A=M" if offset == 0 else ("A=M+1" if offset > 0 else "A=M-1"))
+            for _ in range(abs(offset) - 1):
+                self.emit("A=A+1" if offset > 0 else "A=A-1")
             self.emit("D=M")
         else:
             self.emit_load_constant(abs(offset))
