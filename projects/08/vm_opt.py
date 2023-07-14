@@ -21,6 +21,15 @@ class Translator:
         self.assembly = ""
         self.stats = collections.defaultdict(list)
 
+        # go to initialization code
+        self.emit_goto_label("START")
+
+        # define routines
+        self.define_return()
+
+        # initialization code
+        self.emit_label("START")
+
         # initialize stack pointer
         self.emit("\n// init stack pointer")
         self.emit_load_constant(256)
@@ -307,9 +316,11 @@ class Translator:
         # 4) Emit return label.
         self.emit_label(return_label)
 
-    def emit_return(self):
+    def define_return(self):
         FRAME = 13  # temp register 13
         RET = 14  # temp register 14
+
+        self.emit_label("SUBROUTINE_RETURN")
 
         # 1) Save stack frame and parent return addr to temp registers.
         # FRAME = &local
@@ -347,6 +358,9 @@ class Translator:
         self.emit_load_from_addr(RET)
         self.emit("A=D")
         self.emit("0;JMP")
+
+    def emit_return(self):
+        self.emit_goto_label("SUBROUTINE_RETURN")
 
     #####################
     #### EMIT OPCODE ####
