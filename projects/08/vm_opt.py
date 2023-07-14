@@ -26,6 +26,9 @@ class Translator:
 
         # define routines
         self.define_return()
+        self.define_cmp_op("eq")
+        self.define_cmp_op("lt")
+        self.define_cmp_op("gt")
 
         # initialization code
         self.emit_label("START")
@@ -164,7 +167,7 @@ class Translator:
         self.emit("A=M-1")
         self.emit(f"M={op}")
 
-    def emit_cmp_op(self, op: str):
+    def define_cmp_op(self, op: str):
         """
         y = pop()
         x = pop()
@@ -178,10 +181,11 @@ class Translator:
         0 (false) is pushed to the stack.
         """
 
+        self.emit_label(f"SUBROUTINE_{op}")
+
         op = {"eq": "JEQ", "gt": "JGT", "lt": "JLT"}[op]
-        uid = self.get_unique_label_id()
-        true_branch_label = f"TRUE_BRANCH_{uid}"
-        end_comparison_label = f"END_COMPARISON_{uid}"
+        true_branch_label = f"TRUE_BRANCH_{op}"
+        RET = 13
 
         # D = head - stack.pop()
         self.emit_stack_pop()
@@ -197,14 +201,31 @@ class Translator:
         self.emit(f"@{SP}")
         self.emit("A=M-1")
         self.emit("M=0")
-        self.emit_goto_label(end_comparison_label)
+
+        self.emit(f"@{RET}")
+        self.emit("A=M")
+        self.emit("0;JMP")
 
         # if condition triggered, set head=true=-1
         self.emit_label(true_branch_label)
         self.emit(f"@{SP}")
         self.emit("A=M-1")
         self.emit("M=-1")
-        self.emit_label(end_comparison_label)
+
+        self.emit(f"@{RET}")
+        self.emit("A=M")
+        self.emit("0;JMP")
+
+    def emit_cmp_op(self, op: str):
+        label = f"RETURN_TO_{self.get_unique_label_id()}"
+        RET = 13
+
+        self.emit_load_constant(label)
+        self.emit_save_to_addr(RET)
+
+        self.emit_goto_label(f"SUBROUTINE_{op}")
+
+        self.emit_label(label)
 
     ###########################
     #### LOAD FROM SEGMENT ####
