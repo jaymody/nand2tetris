@@ -90,9 +90,11 @@ class Translator:
     def emit_save_to_pointer(self, ptr: int, offset: int = 0):
         """RAM[RAM[ptr] + offset] = D"""
 
-        if offset == 0:
+        if abs(offset) <= 8:
             self.emit(f"@{ptr}")
-            self.emit("A=M")
+            self.emit("A=M" if offset == 0 else ("A=M+1" if offset > 0 else "A=M-1"))
+            for _ in range(abs(offset) - 1):
+                self.emit("A=A+1" if offset > 0 else "A=A-1")
             self.emit("M=D")
         else:
             VAL = 13  # temp register 13
