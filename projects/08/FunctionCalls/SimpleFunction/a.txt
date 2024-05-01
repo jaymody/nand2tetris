@@ -1,0 +1,19 @@
+RAM[0] = 310 (SP)
+RAM[1] = 295 (LCL)
+RAM[2] = 289 (ARG)
+RAM[3] = 55  (THIS)
+RAM[4] = 60  (THAT)
+...
+RAM[289] = value of arg 0
+RAM[290] = return address for prev function
+RAM[291] = LCL pointer for prev function
+RAM[292] = ARG pointer for prev function
+RAM[293] = THIS pointer for prev function
+RAM[294] = THAT pointer for prev function
+RAM[295] = value of local 0
+RAM[296] = value of local 1
+...
+RAM[310] = value of arg 0 for the next function to be called
+RAM[310] = value of arg 1 for the next function to be called
+
+

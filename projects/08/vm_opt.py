@@ -11,6 +11,17 @@ THAT = 4
 TEMP = 5
 STATIC = 16
 
+stack = []
+
+
+def add_debug_stack(f):
+    def inner(*args, **kwargs):
+        stack.append(f.__name__)
+        f(*args, **kwargs)
+        stack.pop()
+
+    return inner
+
 
 class Translator:
     ################
@@ -50,24 +61,27 @@ class Translator:
         return f"{module_name}${val}"
 
     def emit(self, s):
-        self.assembly += s
+        self.assembly += f"{s} // {'.'.join(stack)}"
         self.assembly += "\n"
 
     ############################
     #### LOAD MEMORY INTO D ####
     ############################
+    @add_debug_stack
     def emit_load_constant(self, val: int):
         """D = val"""
 
         self.emit(f"@{val}")
         self.emit("D=A")
 
+    @add_debug_stack
     def emit_load_from_addr(self, addr: int):
         """D = RAM[addr]"""
 
         self.emit(f"@{addr}")
         self.emit("D=M")
 
+    @add_debug_stack
     def emit_load_from_pointer(self, ptr: int, offset: int = 0):
         """D = RAM[RAM[ptr] + offset]"""
 
@@ -86,12 +100,14 @@ class Translator:
     ############################
     #### SAVE D INTO MEMORY ####
     ############################
+    @add_debug_stack
     def emit_save_to_addr(self, addr: int):
         """RAM[addr] = D"""
 
         self.emit(f"@{addr}")
         self.emit("M=D")
 
+    @add_debug_stack
     def emit_save_to_pointer(self, ptr: int, offset: int = 0):
         """RAM[RAM[ptr] + offset] = D"""
 
@@ -121,6 +137,7 @@ class Translator:
     ########################
     #### STACK PUSH/POP ####
     ########################
+    @add_debug_stack
     def emit_stack_push(self):
         """
         head   = D
@@ -131,6 +148,7 @@ class Translator:
         self.emit("A=A-1")
         self.emit("M=D")
 
+    @add_debug_stack
     def emit_stack_pop(self):
         """
         &head -= 1
@@ -143,6 +161,7 @@ class Translator:
     ##############################
     #### ARITHMETIC/LOGIC OPS ####
     ##############################
+    @add_debug_stack
     def emit_unary_op(self, op: str):
         """
         x = pop()
@@ -154,6 +173,7 @@ class Translator:
         self.emit("A=M-1")
         self.emit(f"M={op}M")
 
+    @add_debug_stack
     def emit_binary_op(self, op: str):
         """
         y = pop()
@@ -216,6 +236,7 @@ class Translator:
         self.emit("A=M")
         self.emit("0;JMP")
 
+    @add_debug_stack
     def emit_cmp_op(self, op: str):
         label = f"RETURN_TO_{self.get_unique_label_id()}"
         RET = 13
@@ -230,6 +251,7 @@ class Translator:
     ###########################
     #### LOAD FROM SEGMENT ####
     ###########################
+    @add_debug_stack
     def emit_load_from_segment(self, segment: str, val: int, module_name: str):
         """D = segment[val]"""
 
@@ -256,6 +278,7 @@ class Translator:
     #########################
     #### SAVE TO SEGMENT ####
     #########################
+    @add_debug_stack
     def emit_save_to_segment(self, segment: str, val: int, module_name: str):
         """segment[val] = D"""
 
@@ -282,15 +305,18 @@ class Translator:
     ######################
     #### PROGRAM FLOW ####
     ######################
+    @add_debug_stack
     def emit_label(self, label: str):
         """emit label"""
         self.emit(f"({label})")
 
+    @add_debug_stack
     def emit_goto_label(self, label: str):
         """goto label"""
         self.emit(f"@{label}")
         self.emit("0;JMP")
 
+    @add_debug_stack
     def emit_if_goto_label(self, label: str):
         """if D != 0 then goto label"""
         self.emit_stack_pop()
@@ -300,12 +326,14 @@ class Translator:
     ###################
     #### FUNCTIONS ####
     ###################
+    @add_debug_stack
     def emit_function(self, name, nlocals):
         self.emit_label(name)
         for _ in range(nlocals):
             self.emit_load_constant(0)
             self.emit_stack_push()
 
+    @add_debug_stack
     def emit_call(self, name, nargs):
         return_label = f"RETURN_LABEL_{self.get_unique_label_id()}"
 
@@ -384,6 +412,7 @@ class Translator:
         self.emit("A=D")
         self.emit("0;JMP")
 
+    @add_debug_stack
     def emit_return(self):
         self.emit_goto_label("SUBROUTINE_RETURN")
 
@@ -391,9 +420,11 @@ class Translator:
     #### EMIT OPCODE ####
     #####################
     def emit_op(self, line: str, module_name: str):
-        op, *args = line.split()
-
         before_asm_count = self.assembly.count("\n")
+
+        self.emit(f"// {line}")
+
+        op, *args = line.split()
 
         match op:
             case "neg" | "not":
@@ -433,6 +464,18 @@ class Translator:
         self.stats[op].append(self.assembly.count("\n") - before_asm_count)
 
 
+def add_line_numbers(assembly: str) -> str:
+    line_num = 0
+    output = []
+    for line in assembly.splitlines():
+        if line := line.strip():
+            if not (line.startswith("(") or line.startswith("//")):
+                line = f"{line} // line_num: {line_num}"
+                line_num += 1
+            output.append(line)
+    return "\n".join(output)
+
+
 def translate(path: str, print_stats: bool = True):
     files = glob.glob(os.path.join(path, "*.vm")) if os.path.isdir(path) else [path]
 
@@ -452,7 +495,7 @@ def translate(path: str, print_stats: bool = True):
             print(f"{k:>16} | {len(v):>16} | {sum(v):>16} | {sum(v)/total_lc:>16.3f} |", file=sys.stderr)
         print(f"\ntotal asm line count = {total_lc}", file=sys.stderr)
 
-    return translator.assembly
+    return add_line_numbers(translator.assembly)
 
 
 if __name__ == "__main__":
